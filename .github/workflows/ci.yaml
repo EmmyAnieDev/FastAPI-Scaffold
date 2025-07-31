@@ -1,0 +1,51 @@
+name: CI - Test and Build
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test_and_build:
+    name: Lint, Test & Docker Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 📦 Install Poetry
+        run: |
+          pip install poetry
+          poetry config virtualenvs.in-project true
+          poetry config virtualenvs.prompt "{project_name}"
+          poetry --version
+
+      - name: 📥 Install dependencies
+        run: poetry install --no-root --no-interaction
+
+      - name: 🧹 Run Ruff Lint
+        run: poetry run ruff check .
+
+      - name: ✅ Run Tests
+        run: poetry run pytest tests/ --verbose
+
+      - name: 🐳 Build Docker Image (Local Test Only)
+        run: |
+          docker build -t <YOUR-APP-NAME>-test:local .
