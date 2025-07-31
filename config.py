@@ -1,5 +1,6 @@
+from datetime import timedelta
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
 from decouple import config
 from pydantic_settings import BaseSettings
@@ -37,6 +38,10 @@ class Settings(BaseSettings):
     # Redis Configuration
     REDIS_HOST: str = config("REDIS_HOST", default="localhost")
     REDIS_PORT: int = config("REDIS_PORT", default=6379, cast=int)
+
+    # Cookie configuration
+    COOKIE_DOMAIN: ClassVar[str] = "<YOUR-APP-NAME.COM>  E.G google.com"
+    COOKIE_MAX_AGE: ClassVar[int] = int(timedelta(days=REFRESH_TOKEN_EXPIRY).total_seconds())
 
 
 

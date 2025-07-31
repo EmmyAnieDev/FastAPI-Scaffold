@@ -1,15 +1,19 @@
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Request, Response, Cookie
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from app.api.v1.schemas.auth import UserCreate, UserLogin, AuthResponse
+from app.api.v1.schemas.auth import UserCreate, UserLogin, AuthResponse, TokenRefreshResponse, LogoutResponse
 from app.api.v1.schemas.sucess_response import SuccessResponse
 from app.api.v1.services.users import UserService
 from app.api.utils.success_response import success_response
-from app.api.utils.token import verify_password, create_access_token
+from app.api.utils.token import verify_password
+from app.api.utils.build_refresh_response import build_refresh_response
+from app.api.utils.build_auth_response import build_auth_response
 from app.api.exceptions.exceptions import (
     InvalidCredentials, UserAlreadyExists, RefreshTokenExpired,
     RegistrationInitiationFailed,
@@ -17,15 +21,16 @@ from app.api.exceptions.exceptions import (
 from app.api.core.dependencies.auth import RefreshTokenBearer, AccessTokenBearer
 from app.api.core.redis import add_jti_to_blocklist
 from app.api.db.database import get_db
-from app.api.v1.schemas.auth import TokenRefreshResponse, LogoutResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=SuccessResponse[AuthResponse])
-async def Register(
+async def register(
     user_data: UserCreate,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -33,6 +38,8 @@ async def Register(
 
     Args:
         user_data (UserCreate): New user registration details.
+        request (Request): Incoming request to determine client type.
+        response (Response): FastAPI response object.
         db (AsyncSession): Asynchronous SQLAlchemy session.
 
     Returns:
@@ -42,6 +49,7 @@ async def Register(
         UserAlreadyExists: If a user already exists with the given email.
         RegistrationInitiationFailed: If user registration fails.
     """
+
     logger.info("Initiating registration for email: %s", user_data.email)
 
     if await UserService.user_exists(user_data.email, db):
@@ -56,23 +64,8 @@ async def Register(
 
     logger.info("Registration successful for email: %s", user.email)
 
-    access_token = await create_access_token({"id": str(user.id), "email": user.email})
-    refresh_token = await create_access_token(
-        {"id": str(user.id), "email": user.email},
-        refresh=True,
-        expiry=timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
-    )
-
-    logger.info("Tokens generated for user: %s", user.email)
-
-    response_data = AuthResponse(
-        id=str(user.id),
-        email=user.email,
-        created_at=user.created_at,
-        access_token=access_token,
-        refresh_token=refresh_token,
-    )
-
+    response_data = await build_auth_response(user, request, response)
+    
     return success_response(
         status_code=status.HTTP_201_CREATED,
         message="User Registered Successfully",
@@ -83,6 +76,8 @@ async def Register(
 @router.post("/login", status_code=status.HTTP_200_OK, response_model=SuccessResponse[AuthResponse])
 async def login(
     data: UserLogin,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -93,6 +88,8 @@ async def login(
 
     Args:
         data (UserLogin): Login credentials.
+        request (Request): Incoming request to determine client type.
+        response (Response): FastAPI response object.
         db (AsyncSession): Async database session.
 
     Returns:
@@ -114,22 +111,7 @@ async def login(
 
     logger.info("Login successful for user: %s", user.email)
 
-    access_token = await create_access_token({"id": str(user.id), "email": user.email})
-    refresh_token = await create_access_token(
-        {"id": str(user.id), "email": user.email},
-        refresh=True,
-        expiry=timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
-    )
-
-    logger.info("Tokens generated for user: %s", user.email)
-    
-    response_data = AuthResponse(
-        id=str(user.id),
-        email=user.email,
-        created_at=user.created_at,
-        access_token=access_token,
-        refresh_token=refresh_token,
-    )
+    response_data = await build_auth_response(user, request, response)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -139,70 +121,84 @@ async def login(
 
 
 @router.post("/tokens/refresh", status_code=status.HTTP_200_OK, response_model=SuccessResponse[TokenRefreshResponse])
-async def refresh_token(token_data: dict = Depends(RefreshTokenBearer())):
+async def refresh_token(
+    request: Request,
+    response: Response,
+    refresh_cookie: Optional[str] = Cookie(default=None),
+    token_data: dict = Depends(RefreshTokenBearer())
+):
     """
-    Refresh access and refresh tokens.
+    Endpoint to refresh an expired or expiring access token using a refresh token.
 
-    Validates the refresh token and issues new access and refresh tokens.
+    This endpoint:
+    - Accepts a refresh token either from an Authorization header or a secure HTTP-only cookie.
+    - Returns a new access token.
+    - For web clients, sets a new refresh token in the cookie.
+    - For other clients (e.g., mobile), includes the new refresh token in the response body.
 
     Args:
-        token_data (dict): The JWT payload of a valid refresh token.
+        request (Request): The FastAPI request object.
+        response (Response): The FastAPI response object.
+        refresh_cookie (Optional[str]): The refresh token from the HTTP-only cookie.
+        token_data (dict): The decoded user info from the validated refresh token.
 
     Returns:
-        Standard success response with TokenRefreshResponse and new tokens.
+        SuccessResponse[TokenRefreshResponse]: A success message and new tokens.
 
     Raises:
-        RefreshTokenExpired: If the refresh token is expired.
+        RefreshTokenExpired: If the refresh token is missing or invalid.
     """
-    expiry = token_data['exp']
-    if datetime.fromtimestamp(expiry) <= datetime.utcnow():
-        logger.warning("Refresh token expired for user: %s", token_data['user']['email'])
-        raise RefreshTokenExpired()
+    if not token_data:
+        raise RefreshTokenExpired
 
-    user = token_data['user']
-    payload = {"id": str(user['id']), "email": user['email']}
-
-    new_access_token = await create_access_token(payload)
-    new_refresh_token = await create_access_token(
-        payload,
-        refresh=True,
-        expiry=timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
-    )
-
-    logger.info("Tokens refreshed for user: %s", user['email'])
-
-    response_data =  TokenRefreshResponse(
-        access_token=new_access_token,
-        refresh_token=new_refresh_token
-    )
+    token_response = await build_refresh_response(request, response, token_data, refresh_cookie)
 
     return success_response(
         status_code=status.HTTP_200_OK,
-        message="Token refreshed Successfully",
-        data=response_data,
+        message="Token refreshed successfully",
+        data=token_response
     )
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK, response_model=SuccessResponse[LogoutResponse])
-async def logout(token_data: dict = Depends(AccessTokenBearer())):
+async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer())):
     """
     Log the user out by invalidating the access token.
 
     Adds the token's JTI to the Redis blocklist, effectively revoking it.
 
     Args:
+        request (Request): FastAPI request object.
         token_data (dict): The decoded JWT token payload.
 
     Returns:
-        Standard success response with message indicating logout was successful.
+        JSONResponse with success message and deleted refresh token cookie.
     """
     jti = token_data.get("jti")
     await add_jti_to_blocklist(jti)
 
     logger.info("User with token jti %s has been logged out", jti)
 
-    return success_response(
+    # Create the success response data
+    response_data = success_response(
         status_code=status.HTTP_200_OK,
         message="User logged out Successfully",
         data=LogoutResponse()
     )
+
+    # Create JSONResponse with the data (this preserves the schema)
+    logout_response = JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=response_data.dict()
+    )
+
+    origin = request.headers.get("origin", "")
+    domain = None if "localhost" in origin else settings.COOKIE_DOMAIN
+    
+    logout_response.delete_cookie(
+        key="refresh_token",
+        domain=domain,
+        path="/"
+    )
+
+    return logout_response
