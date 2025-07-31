@@ -71,12 +71,12 @@ async def update_profile(
 
     updated_user = await UserService.update_user(user, update_data.dict(exclude_unset=True), db)
 
-    logger.info("User profile updated: %s", user.email)
+    logger.info("User profile updated: %s", updated_user.email)
 
     return success_response(
         status_code=status.HTTP_200_OK,
         message="User profile updated successfully",
-        data = UserResponse.model_validate(user, from_attributes=True)
+        data=UserResponse.from_orm(updated_user)
     )
 
 
