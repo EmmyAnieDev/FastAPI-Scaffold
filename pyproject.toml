@@ -12,6 +12,17 @@ uvicorn = "^0.35.0"
 pydantic-settings = "^2.10.1"
 python-decouple = "^3.8"
 pytest = "^8.4.1"
+sqlalchemy = "^2.0.42"
+pydantic = {extras = ["email"], version = "^2.11.7"}
+uuid6 = "^2025.0.1"
+redis = "^6.2.0"
+asyncpg = "^0.30.0"
+passlib = "^1.7.4"
+psycopg2-binary = "^2.9.10"
+pyjwt = "^2.10.1"
+
+[tool.poetry.group.dev.dependencies]
+alembic = "^1.16.4"
 
 [build-system]
 requires = ["poetry-core"]

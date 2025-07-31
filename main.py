@@ -1,15 +1,30 @@
 import uvicorn
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from config import settings
+from app.api import router as api_router
+from app.api.exceptions.register import register_all_errors
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+)
+
 
 app = FastAPI(
     title="--- Application API",
-    description="--- Application API for house renting",
+    description="--- Application API for ---",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+register_all_errors(app)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +33,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(api_router)
+
 
 @app.get("/")
 def read_root():
