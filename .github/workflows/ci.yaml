@@ -46,6 +46,6 @@ jobs:
       - name: ✅ Run Tests
         run: poetry run pytest tests/ --verbose
 
-      - name: 🐳 Build Docker Image (Local Test Only)
-        run: |
-          docker build -t <YOUR-APP-NAME>-test:local .
+    #   - name: 🐳 Build Docker Image (Local Test Only)
+    #     run: |
+    #       docker build -t <YOUR-APP-NAME>-test:local .
