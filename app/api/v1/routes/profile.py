@@ -40,7 +40,7 @@ async def get_user_profile(token_data: dict = Depends(AccessTokenBearer()), db: 
     return success_response(
         status_code=status.HTTP_200_OK,
         message="User profile retrieved successfully",
-        data = UserResponse.model_validate(user, from_attributes=True)
+        data=UserResponse.from_orm(user)
     )
 
 
