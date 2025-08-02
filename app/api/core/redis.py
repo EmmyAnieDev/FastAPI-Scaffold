@@ -5,11 +5,12 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Redis client for storing blocked JTI
-jti_blocklist = redis.Redis(
+# Shared Redis client for general-purpose use (rate limiter, etc.)
+redis_client = redis.Redis(
     host=settings.REDIS_HOST,
     port=settings.REDIS_PORT,
-    db=0  # Default Redis DB
+    db=0,  # Default DB
+    decode_responses=True  # Ensures Redis returns strings, not bytes
 )
 
 async def add_jti_to_blocklist(jti: str) -> None:
@@ -23,7 +24,7 @@ async def add_jti_to_blocklist(jti: str) -> None:
         None
     """
     try:
-        await jti_blocklist.set(name=jti, value="", ex=settings.JTI_EXPIRY)
+        await redis_client.set(name=jti, value="", ex=settings.JTI_EXPIRY)
         logger.info("Added jti to blocklist: %s", jti)
     except Exception as e:
         logger.error("Failed to add jti to Redis blocklist: %s", str(e))
@@ -40,7 +41,7 @@ async def jti_in_blocklist(jti: str) -> bool:
         bool: True if the jti is in the blocklist, False otherwise.
     """
     try:
-        result = await jti_blocklist.get(jti)
+        result = await redis_client.get(jti)
         is_blocked = result is not None
         logger.debug("Checked jti in blocklist: %s -> %s", jti, is_blocked)
         return is_blocked

@@ -65,3 +65,7 @@ class RegistrationInitiationFailed(CustomException):
 class UserDeletionFailed(CustomException):
     """Raised when a user could not be deleted due to a database or logic error."""
     pass
+
+class RateLimiterException(CustomException):
+    """Raised when a user exceeds the rate limit for a specific action."""
+    pass

@@ -7,7 +7,7 @@ from .exceptions import (
     Unauthorized, InsufficientPermission, UserNotFound, MethodNotAllowed,
     BadRequest, AccessTokenRequired, RefreshTokenRequired, RevokedToken,
     RefreshTokenExpired, PasswordMismatchError, RegistrationInitiationFailed,
-    UserDeletionFailed
+    UserDeletionFailed, RateLimiterException
 )
 from .handlers import create_exception_handler
 
@@ -40,7 +40,8 @@ def register_all_errors(app: FastAPI):
         RefreshTokenExpired: (status.HTTP_400_BAD_REQUEST, "Please get a valid refresh token or login again"),
         PasswordMismatchError: (status.HTTP_400_BAD_REQUEST, "Passwords do not match"),
         RegistrationInitiationFailed: (status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to initiate registration"),
-        UserDeletionFailed: (status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to delete user due to internal error")
+        UserDeletionFailed: (status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to delete user due to internal error"),
+        RateLimiterException: (status.HTTP_429_TOO_MANY_REQUESTS, "Too many request. Please try again later")
     }
 
     for exc_class, (code, message) in exception_map.items():

@@ -21,12 +21,18 @@ from app.api.exceptions.exceptions import (
 from app.api.core.dependencies.auth import RefreshTokenBearer, AccessTokenBearer
 from app.api.core.redis import add_jti_to_blocklist
 from app.api.db.database import get_db
+from app.api.core.dependencies.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=SuccessResponse[AuthResponse])
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=SuccessResponse[AuthResponse],
+    dependencies=[Depends(rate_limiter(prefix="register"))]
+)
 async def register(
     user_data: UserCreate,
     request: Request,
@@ -35,6 +41,8 @@ async def register(
 ):
     """
     Register a new user.
+
+    Rate limited to prevent automated or repeated abuse from the same IP.
 
     Args:
         user_data (UserCreate): New user registration details.
@@ -49,7 +57,6 @@ async def register(
         UserAlreadyExists: If a user already exists with the given email.
         RegistrationInitiationFailed: If user registration fails.
     """
-
     logger.info("Initiating registration for email: %s", user_data.email)
 
     if await UserService.user_exists(user_data.email, db):
@@ -65,7 +72,7 @@ async def register(
     logger.info("Registration successful for email: %s", user.email)
 
     response_data = await build_auth_response(user, request, response)
-    
+
     return success_response(
         status_code=status.HTTP_201_CREATED,
         message="User Registered Successfully",
@@ -73,7 +80,12 @@ async def register(
     )
 
 
-@router.post("/login", status_code=status.HTTP_200_OK, response_model=SuccessResponse[AuthResponse])
+@router.post(
+    "/login",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse[AuthResponse],
+    dependencies=[Depends(rate_limiter(prefix="login"))]
+)
 async def login(
     data: UserLogin,
     request: Request,
@@ -83,8 +95,7 @@ async def login(
     """
     Authenticate user and issue JWT tokens.
 
-    This endpoint verifies the user's email and password. If valid,
-    it returns access and refresh tokens.
+    This endpoint is rate-limited to prevent brute-force attempts.
 
     Args:
         data (UserLogin): Login credentials.
@@ -120,7 +131,12 @@ async def login(
     )
 
 
-@router.post("/tokens/refresh", status_code=status.HTTP_200_OK, response_model=SuccessResponse[TokenRefreshResponse])
+@router.post(
+    "/tokens/refresh",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse[TokenRefreshResponse],
+    dependencies=[Depends(rate_limiter(prefix="refresh"))]
+)
 async def refresh_token(
     request: Request,
     response: Response,
@@ -130,11 +146,7 @@ async def refresh_token(
     """
     Endpoint to refresh an expired or expiring access token using a refresh token.
 
-    This endpoint:
-    - Accepts a refresh token either from an Authorization header or a secure HTTP-only cookie.
-    - Returns a new access token.
-    - For web clients, sets a new refresh token in the cookie.
-    - For other clients (e.g., mobile), includes the new refresh token in the response body.
+    This endpoint is rate-limited to mitigate automated abuse.
 
     Args:
         request (Request): The FastAPI request object.
@@ -167,6 +179,9 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
 
     Adds the token's JTI to the Redis blocklist, effectively revoking it.
 
+    This route is not rate-limited because it doesn't pose significant risk
+    if called repeatedly.
+
     Args:
         request (Request): FastAPI request object.
         token_data (dict): The decoded JWT token payload.
@@ -179,14 +194,12 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
 
     logger.info("User with token jti %s has been logged out", jti)
 
-    # Create the success response data
     response_data = success_response(
         status_code=status.HTTP_200_OK,
         message="User logged out Successfully",
         data=LogoutResponse()
     )
 
-    # Create JSONResponse with the data (this preserves the schema)
     logout_response = JSONResponse(
         status_code=status.HTTP_200_OK,
         content=response_data.dict()
@@ -194,7 +207,7 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
 
     origin = request.headers.get("origin", "")
     domain = None if "localhost" in origin else settings.COOKIE_DOMAIN
-    
+
     logout_response.delete_cookie(
         key="refresh_token",
         domain=domain,

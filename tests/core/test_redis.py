@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from app.api.core.redis import add_jti_to_blocklist, jti_in_blocklist
 
 @pytest.mark.asyncio
-@patch("app.api.core.redis.jti_blocklist")
+@patch("app.api.core.redis.redis_client")
 async def test_add_jti_to_blocklist(mock_redis):
     # Arrange
     mock_redis.set = AsyncMock(return_value=True)
@@ -17,7 +17,7 @@ async def test_add_jti_to_blocklist(mock_redis):
     mock_redis.set.assert_called_once_with(name=jti, value="", ex=mock_redis.set.call_args.kwargs.get("ex"))
 
 @pytest.mark.asyncio
-@patch("app.api.core.redis.jti_blocklist")
+@patch("app.api.core.redis.redis_client")
 async def test_jti_in_blocklist_found(mock_redis):
     # Arrange
     mock_redis.get = AsyncMock(return_value=b"")
@@ -31,7 +31,7 @@ async def test_jti_in_blocklist_found(mock_redis):
     mock_redis.get.assert_awaited_once_with(jti)
 
 @pytest.mark.asyncio
-@patch("app.api.core.redis.jti_blocklist")
+@patch("app.api.core.redis.redis_client")
 async def test_jti_in_blocklist_not_found(mock_redis):
     # Arrange
     mock_redis.get = AsyncMock(return_value=None)
@@ -45,7 +45,7 @@ async def test_jti_in_blocklist_not_found(mock_redis):
     mock_redis.get.assert_awaited_once_with(jti)
 
 @pytest.mark.asyncio
-@patch("app.api.core.redis.jti_blocklist")
+@patch("app.api.core.redis.redis_client")
 async def test_jti_in_blocklist_redis_error(mock_redis):
     # Arrange
     mock_redis.get = AsyncMock(side_effect=Exception("Redis error"))

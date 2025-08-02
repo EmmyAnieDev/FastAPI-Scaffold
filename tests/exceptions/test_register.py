@@ -9,7 +9,7 @@ from app.api.exceptions.exceptions import (
     Unauthorized, InsufficientPermission, UserNotFound, MethodNotAllowed,
     BadRequest, AccessTokenRequired, RefreshTokenRequired, RevokedToken,
     RefreshTokenExpired, PasswordMismatchError, RegistrationInitiationFailed,
-    UserDeletionFailed
+    UserDeletionFailed, RateLimiterException
 )
 
 exception_test_cases = [
@@ -28,7 +28,8 @@ exception_test_cases = [
     (RefreshTokenExpired, 400, "Please get a valid refresh token or login again"),
     (PasswordMismatchError, 400, "Passwords do not match"),
     (RegistrationInitiationFailed, 500, "Failed to initiate registration"),
-    (UserDeletionFailed, 500, "Failed to delete user due to internal error")
+    (UserDeletionFailed, 500, "Failed to delete user due to internal error"),
+    (RateLimiterException, 429, "Too many request. Please try again later")
 ]
 
 @pytest.mark.asyncio

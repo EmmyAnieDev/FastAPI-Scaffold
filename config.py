@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     COOKIE_DOMAIN: ClassVar[str] = "<YOUR-APP-NAME.COM>  E.G google.com"
     COOKIE_MAX_AGE: ClassVar[int] = int(timedelta(days=REFRESH_TOKEN_EXPIRY).total_seconds())
 
+    # Rate Limiter configuration
+    DEFAULT_LIMIT: int = config("DEFAULT_LIMIT", default=5, cast=int)
+    DEFAULT_WINDOW: int = config("DEFAULT_WINDOW", default=60, cast=int)
+    DEFAULT_PREFIX: str = config("DEFAULT_PREFIX", default="default")
+
 
 
     class Config:
