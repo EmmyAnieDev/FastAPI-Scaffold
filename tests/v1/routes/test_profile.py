@@ -5,17 +5,10 @@ from fastapi import status
 from main import app
 
 
-def dummy_rate_limiter(func):
-    """Bypass the actual rate limiter during tests."""
-    return func
-
-
 @pytest.mark.asyncio(scope="session")
 @patch("app.api.v1.routes.profile.UserService.get_user_by_email", new_callable=AsyncMock)
 async def test_get_user_profile_success(mock_get_user_by_email):
-    """
-    Test successful retrieval of authenticated user's profile.
-    """
+    """Test successful retrieval of authenticated user's profile."""
     mock_user = AsyncMock()
     mock_user.email = "test@example.com"
     mock_user.id = "user-id"
@@ -23,9 +16,7 @@ async def test_get_user_profile_success(mock_get_user_by_email):
     mock_get_user_by_email.return_value = mock_user
 
     token_data = {
-        "user": {
-            "email": "test@example.com"
-        }
+        "user": {"email": "test@example.com"}
     }
 
     with patch("app.api.v1.routes.profile.AccessTokenBearer.__call__", return_value=token_data):
@@ -37,25 +28,20 @@ async def test_get_user_profile_success(mock_get_user_by_email):
 
 
 @pytest.mark.asyncio(scope="session")
-@patch("app.api.v1.routes.profile.rate_limiter", dummy_rate_limiter)
+@patch("app.api.v1.routes.profile.rate_limiter", new_callable=AsyncMock)
 @patch("app.api.v1.routes.profile.UserService.get_user_by_email", new_callable=AsyncMock)
 @patch("app.api.v1.routes.profile.UserService.update_user", new_callable=AsyncMock)
-async def test_update_profile_success(mock_update_user, mock_get_user_by_email):
-    """
-    Test successful profile update.
-    """
+async def test_update_profile_success(mock_update_user, mock_get_user_by_email, mock_rate_limiter):
+    """Test successful profile update."""
     mock_user = AsyncMock()
     mock_user.email = "test@example.com"
     mock_user.id = "user-id"
     mock_user.created_at = "2025-01-01T00:00:00Z"
-
     mock_get_user_by_email.return_value = mock_user
     mock_update_user.return_value = mock_user
 
     token_data = {
-        "user": {
-            "email": "test@example.com"
-        }
+        "user": {"email": "test@example.com"}
     }
 
     with patch("app.api.v1.routes.profile.AccessTokenBearer.__call__", return_value=token_data):
@@ -70,13 +56,11 @@ async def test_update_profile_success(mock_update_user, mock_get_user_by_email):
 
 
 @pytest.mark.asyncio(scope="session")
-@patch("app.api.v1.routes.profile.rate_limiter", dummy_rate_limiter)
+@patch("app.api.v1.routes.profile.rate_limiter", new_callable=AsyncMock)
 @patch("app.api.v1.routes.profile.UserService.get_user_by_email", new_callable=AsyncMock)
 @patch("app.api.v1.routes.profile.UserService.delete_user", new_callable=AsyncMock)
-async def test_delete_profile_success(mock_delete_user, mock_get_user_by_email):
-    """
-    Test successful profile deletion.
-    """
+async def test_delete_profile_success(mock_delete_user, mock_get_user_by_email, mock_rate_limiter):
+    """Test successful profile deletion."""
     mock_user = AsyncMock()
     mock_user.email = "test@example.com"
     mock_user.id = "user-id"
@@ -85,9 +69,7 @@ async def test_delete_profile_success(mock_delete_user, mock_get_user_by_email):
     mock_delete_user.return_value = True
 
     token_data = {
-        "user": {
-            "email": "test@example.com"
-        }
+        "user": {"email": "test@example.com"}
     }
 
     with patch("app.api.v1.routes.profile.AccessTokenBearer.__call__", return_value=token_data):
