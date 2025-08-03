@@ -5,7 +5,7 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build tools for compiling dependencies
+# Install build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -16,12 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Poetry
 RUN pip install --no-cache-dir poetry
 
-# Copy poetry files and install dependencies
+# Copy project files
 COPY pyproject.toml poetry.lock* /app/
+
+# Install dependencies globally (no virtualenv)
 RUN poetry config virtualenvs.create false
 RUN poetry install --no-interaction --no-ansi
 
-# Copy application code and install it (optional if you use poetry install --only-root)
+# Copy the rest of the application code
 COPY . .
 
 # ============================
@@ -29,31 +31,37 @@ COPY . .
 # ============================
 FROM python:3.11-slim AS runtime
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN addgroup --system --gid 1001 fastapi && \
     adduser --system --uid 1001 --ingroup fastapi fastapi
 
 WORKDIR /app
 
-# Copy only installed packages and code from builder
+# Copy installed packages and app from builder
+COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app /app
 
-# Change ownership of the app directory
+# Change ownership
 RUN chown -R fastapi:fastapi /app
 
 # Switch to non-root user
 USER fastapi
 
-# Set env vars
+# Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV APP_PORT=8000
 
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the app
-CMD bash -c "uvicorn main:app --host 0.0.0.0 --port ${APP_PORT} --workers 4"
+# Use exec form to avoid shell PATH issues
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

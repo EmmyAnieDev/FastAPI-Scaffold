@@ -21,6 +21,17 @@ services:
       retries: 3
       start_period: 5s
 
+  nginx:
+    image: nginx:1.25
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/app.conf
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   redis:
     image: redis:7.2
     container_name: redis_cache
