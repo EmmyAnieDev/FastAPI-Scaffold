@@ -76,7 +76,7 @@ async def test_access_token_bearer_valid_token(monkeypatch):
 
     monkeypatch.setattr("app.api.utils.token.decode_token", lambda token: token_data)
     monkeypatch.setattr("app.api.core.dependencies.auth.decode_token", lambda token: token_data)
-    monkeypatch.setattr("app.api.core.redis.jti_in_blocklist", AsyncMock(return_value=False))
+    monkeypatch.setattr("app.api.core.dependencies.auth.jti_in_blocklist", AsyncMock(return_value=False))
 
     class DummyAuth:
         credentials = "fake-token"
@@ -109,7 +109,7 @@ async def test_refresh_token_bearer_invalid(monkeypatch):
 
     monkeypatch.setattr("app.api.utils.token.decode_token", lambda token: token_data)
     monkeypatch.setattr("app.api.core.dependencies.auth.decode_token", lambda token: token_data)
-    monkeypatch.setattr("app.api.core.redis.jti_in_blocklist", AsyncMock(return_value=False))
+    monkeypatch.setattr("app.api.core.dependencies.auth.jti_in_blocklist", AsyncMock(return_value=False))
 
     class DummyAuth:
         credentials = "fake-token"
