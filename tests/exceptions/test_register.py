@@ -5,7 +5,7 @@ from httpx import ASGITransport
 
 from app.api.exceptions.register import register_all_errors
 from app.api.exceptions.exceptions import (
-    InvalidTokenPayload, InvalidToken, InvalidCredentials, UserAlreadyExists,
+    InvalidTokenPayload, InvalidToken, InvalidCredentials, UnprocessableEntityException, UserAlreadyExists,
     Unauthorized, InsufficientPermission, UserNotFound, MethodNotAllowed,
     BadRequest, AccessTokenRequired, RefreshTokenRequired, RevokedToken,
     RefreshTokenExpired, PasswordMismatchError, RegistrationInitiationFailed,
@@ -29,7 +29,8 @@ exception_test_cases = [
     (PasswordMismatchError, 400, "Passwords do not match"),
     (RegistrationInitiationFailed, 500, "Failed to initiate registration"),
     (UserDeletionFailed, 500, "Failed to delete user due to internal error"),
-    (RateLimiterException, 429, "Too many request. Please try again later")
+    (RateLimiterException, 429, "Too many request. Please try again later"),
+    (UnprocessableEntityException, 422, "Missing required field")
 ]
 
 @pytest.mark.asyncio

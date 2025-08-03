@@ -11,6 +11,7 @@ from app.api.exceptions.exceptions import (
     InvalidToken,
     InvalidTokenPayload,
     RegistrationInitiationFailed,
+    UnprocessableEntityException,
 )
 from config import settings
 from app.api.v1.schemas.auth import UserCreate, AuthResponse, GoogleMobileLoginRequest
@@ -143,12 +144,13 @@ async def google_mobile_login(
             google_requests.Request(),
             client_id
         )
-        email = id_info.get("email")
-        if not email:
-            raise InvalidTokenPayload()
     except Exception as e:
         logger.exception("Google token verification failed: %s", str(e))
         raise InvalidToken()
+
+    email = id_info.get("email")
+    if not email:
+        raise UnprocessableEntityException("Google token payload does not contain an email address")
 
     user = await UserService.get_user_by_email(email, db)
     if not user:

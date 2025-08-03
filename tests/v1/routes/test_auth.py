@@ -12,7 +12,9 @@ from main import app
 async def test_register_success(
     mock_auth_response, mock_register_user, mock_user_exists
 ):
-    """Test user registration with valid credentials."""
+    """
+    Test user registration with valid credentials.
+    """
     mock_user_exists.return_value = False
     mock_user = AsyncMock()
     mock_user.email = "test@example.com"
@@ -34,7 +36,9 @@ async def test_register_success(
 @patch("app.api.v1.routes.auth.verify_password")
 @patch("app.api.utils.build_auth_response", new_callable=AsyncMock)
 async def test_login_success(mock_auth_response, mock_verify_password, mock_get_user):
-    """Test user login with valid email and password."""
+    """
+    Test user login with valid email and password.
+    """
     mock_user = AsyncMock()
     mock_user.email = "test@example.com"
     mock_user.password_hash = "hashed_password"
@@ -63,7 +67,9 @@ async def test_refresh_token_success(
     mock_build_refresh_response,
     mock_refresh_token_bearer,
 ):
-    """Test token refresh using a valid refresh token."""
+    """
+    Test token refresh using a valid refresh token.
+    """
     mock_refresh_token_bearer.return_value = {
         "user": {"id": "123", "email": "test@example.com"},
         "jti": "test-jti",
@@ -89,7 +95,9 @@ async def test_logout_success(
     mock_access_token_bearer,
     mock_add_jti,
 ):
-    """Test user logout with a valid access token."""
+    """
+    Test user logout with a valid access token.
+    """
     mock_access_token_bearer.return_value = {"jti": "test-jti"}
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:

@@ -3,7 +3,7 @@ from fastapi import FastAPI, status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .exceptions import (
-    InvalidTokenPayload, InvalidToken, InvalidCredentials, UserAlreadyExists,
+    InvalidTokenPayload, InvalidToken, InvalidCredentials, UnprocessableEntityException, UserAlreadyExists,
     Unauthorized, InsufficientPermission, UserNotFound, MethodNotAllowed,
     BadRequest, AccessTokenRequired, RefreshTokenRequired, RevokedToken,
     RefreshTokenExpired, PasswordMismatchError, RegistrationInitiationFailed,
@@ -41,7 +41,8 @@ def register_all_errors(app: FastAPI):
         PasswordMismatchError: (status.HTTP_400_BAD_REQUEST, "Passwords do not match"),
         RegistrationInitiationFailed: (status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to initiate registration"),
         UserDeletionFailed: (status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to delete user due to internal error"),
-        RateLimiterException: (status.HTTP_429_TOO_MANY_REQUESTS, "Too many request. Please try again later")
+        RateLimiterException: (status.HTTP_429_TOO_MANY_REQUESTS, "Too many request. Please try again later"),
+        UnprocessableEntityException: (status.HTTP_422_UNPROCESSABLE_ENTITY, "Missing required field"),
     }
 
     for exc_class, (code, message) in exception_map.items():

@@ -69,3 +69,7 @@ class UserDeletionFailed(CustomException):
 class RateLimiterException(CustomException):
     """Raised when a user exceeds the rate limit for a specific action."""
     pass
+
+class UnprocessableEntityException(CustomException):
+    """Raised when the request is syntactically correct but semantically invalid."""
+    pass
