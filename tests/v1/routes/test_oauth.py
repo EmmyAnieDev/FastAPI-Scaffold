@@ -166,7 +166,7 @@ async def test_google_mobile_login_android_existing_user():
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "android",
                     "id_token": "fake_google_id_token"
@@ -208,7 +208,7 @@ async def test_google_mobile_login_ios_new_user():
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "ios",
                     "id_token": "fake_google_id_token"
@@ -229,7 +229,7 @@ async def test_google_mobile_login_invalid_platform():
     """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.post(
-            "/api/v1/auth/google/mobile",
+            "/api/v1/auth/login/google/mobile",
             json={
                 "platform": "windows",
                 "id_token": "fake_google_id_token"
@@ -251,7 +251,7 @@ async def test_google_mobile_login_invalid_token():
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "android",
                     "id_token": "invalid_token"
@@ -273,7 +273,7 @@ async def test_google_mobile_login_no_email_in_token():
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "android",
                     "id_token": "fake_google_id_token"
@@ -301,7 +301,7 @@ async def test_google_mobile_login_registration_failed():
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "android",
                     "id_token": "fake_google_id_token"
@@ -319,7 +319,7 @@ async def test_google_mobile_login_android_not_configured():
     with patch("config.settings.GOOGLE_ANDROID_CLIENT_ID", None):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "android",
                     "id_token": "fake_google_id_token"
@@ -337,7 +337,7 @@ async def test_google_mobile_login_ios_not_configured():
     with patch("config.settings.GOOGLE_IOS_CLIENT_ID", None):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
-                "/api/v1/auth/google/mobile",
+                "/api/v1/auth/login/google/mobile",
                 json={
                     "platform": "ios",
                     "id_token": "fake_google_id_token"

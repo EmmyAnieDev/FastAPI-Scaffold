@@ -101,7 +101,7 @@ async def google_callback(
 
 
 @router.post(
-    "/google/mobile",
+    "/login/google/mobile",
     response_model=SuccessResponse[AuthResponse],
     dependencies=[Depends(rate_limiter(prefix="oauth_register"))]
 )
