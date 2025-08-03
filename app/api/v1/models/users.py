@@ -7,7 +7,8 @@ class User(BaseTableModel):
     __tablename__ = "users"
 
     email = Column(String, unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)
+    provider = Column(String, default="email") 
 
     @validates("email")
     def validate_email(self, key, value):

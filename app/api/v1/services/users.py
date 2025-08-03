@@ -1,9 +1,10 @@
 import logging
+
 from datetime import datetime
 from typing import Optional
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from app.api.v1.models.users import User
 from app.api.v1.schemas.auth import UserCreate
 from app.api.utils.token import generate_password_hash
@@ -57,14 +58,20 @@ class UserService:
     @staticmethod
     async def register_user(user_data: UserCreate, db: AsyncSession) -> Optional[User]:
         """
-        Register a new user.
+        Registers a new user with either email/password or a third-party provider (e.g., Google).
+
+        For 'email' provider:
+            - Password is required and will be hashed before storing.
+        
+        For third-party providers (e.g., 'google'):
+            - Password is not required and will be set to None.
 
         Args:
-            user_data (UserCreate): User registration data.
-            db (AsyncSession): Async SQLAlchemy session.
+            user_data (UserCreate): The user registration data, including email, password (if email-based), and provider.
+            db (AsyncSession): The async database session.
 
         Returns:
-            Optional[User]: Created user if successful, None otherwise.
+            Optional[User]: The newly created User object if registration is successful; otherwise, None.
         """
         try:
             logger.info("Registering user with email: %s", user_data.email)
@@ -73,11 +80,21 @@ class UserService:
                 logger.warning("Registration attempted for existing user: %s", user_data.email)
                 return None
 
-            hashed_password = generate_password_hash(user_data.password)
+            provider = getattr(user_data, "provider", "email")
+
+            if provider == "email":
+                if not user_data.password:
+                    logger.warning("Email provider requires a password.")
+                    return None
+                hashed_password = generate_password_hash(user_data.password)
+            else:
+                # For Google and other OAuth providers, skip password
+                hashed_password = None
 
             user = User(
                 email=user_data.email,
                 password_hash=hashed_password,
+                provider=provider
             )
 
             await user.save(db)
@@ -89,8 +106,8 @@ class UserService:
             await db.rollback()
             logger.error("Failed to register user %s: %s", user_data.email, str(e))
             return None
-        
 
+    
     @staticmethod
     async def update_user(user: User, update_data: dict, db: AsyncSession) -> User:
         """

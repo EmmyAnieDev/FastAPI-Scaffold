@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Application port
     APP_PORT: int = config("APP_PORT", default=8000, cast=int)
 
+    # Session configuration
+    SECRET_KEY: str = config("SECRET_KEY", default="your_default_secret")
+    SESSION_MAX_AGE: int = config("SESSION_MAX_AGE", default=300, cast=int)
+
     # Database configurations
     DB_HOST: str = config("DB_HOST", default="localhost")
     DB_PORT: int = config("DB_PORT", default=5432, cast=int)
@@ -48,6 +52,18 @@ class Settings(BaseSettings):
     DEFAULT_WINDOW: int = config("DEFAULT_WINDOW", default=60, cast=int)
     DEFAULT_PREFIX: str = config("DEFAULT_PREFIX", default="default")
 
+    # Google Oauth configuration
+    GOOGLE_WEB_CLIENT_ID: str = config("GOOGLE_WEB_CLIENT_ID", default="")
+    GOOGLE_IOS_CLIENT_ID: str = config("GOOGLE_IOS_CLIENT_ID", default="")
+    GOOGLE_ANDROID_CLIENT_ID: str = config("GOOGLE_ANDROID_CLIENT_ID", default="")
+    GOOGLE_CLIENT_SECRET: str = config("GOOGLE_CLIENT_SECRET", default="")
+    GOOGLE_REDIRECT_URI: str = config(
+        "GOOGLE_REDIRECT_URI",
+        default="http://localhost:8000/api/v1/auth/callback/google",
+    )
+
+    # Frontend URL
+    FRONTEND_URL: str = config("FRONTEND_URL", default="")
 
 
     class Config:

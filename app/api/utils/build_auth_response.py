@@ -28,7 +28,11 @@ async def build_auth_response(user, request: Request, response: Response) -> Aut
 
     client_type = request.headers.get("client-type")
     origin = request.headers.get("origin", "")
-    domain = None if "localhost" in origin else settings.COOKIE_DOMAIN
+
+    if "localhost" in origin or settings.DEBUG:
+        domain = None
+    else:
+        domain = settings.COOKIE_DOMAIN
 
     if client_type == "web":
         response.set_cookie(

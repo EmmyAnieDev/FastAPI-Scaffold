@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from config import settings
 from app.api import router as api_router
@@ -24,6 +25,19 @@ app = FastAPI(
 )
 
 register_all_errors(app)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    max_age=settings.SESSION_MAX_AGE
+)
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    max_age=settings.COOKIE_MAX_AGE
+)
 
 
 app.add_middleware(

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 
 class UserBase(BaseModel):
@@ -8,11 +8,17 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8)
+    password: Optional[str] = Field(default=None, min_length=8)
+    provider: Optional[Literal["email", "google"]] = "email"
 
 
 class UserLogin(UserBase):
     password: str
+    
+
+class GoogleMobileLoginRequest(BaseModel):
+    id_token: str
+    platform: Literal["android", "ios"]
 
 
 ### Rsponse Schemas ###
