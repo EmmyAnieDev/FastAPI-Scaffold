@@ -9,6 +9,7 @@ from app.api.v1.schemas.sucess_response import SuccessResponse
 from app.api.utils.success_response import success_response
 from app.api.db.database import get_db
 from app.api.exceptions.exceptions import UserNotFound, UserDeletionFailed
+from app.api.core.dependencies.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users/me", tags=["profile"])
@@ -44,15 +45,21 @@ async def get_user_profile(token_data: dict = Depends(AccessTokenBearer()), db: 
     )
 
 
-@router.put("", status_code=status.HTTP_200_OK, response_model=SuccessResponse[UserResponse])
+@router.put(
+    "",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse[UserResponse],
+    dependencies=[Depends(rate_limiter(prefix="update_profile"))]
+)
 async def update_profile(
     update_data: UpdateUserRequest,
-    token_data: dict = Depends(AccessTokenBearer()), db: AsyncSession = Depends(get_db)
+    token_data: dict = Depends(AccessTokenBearer()),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Update current user's profile.
 
-    Allows the authenticated user to update personal information such as name, phone, etc.
+    This endpoint is rate-limited to prevent abuse of profile update operations.
 
     Args:
         update_data (UpdateUserRequest): Fields provided for update.
@@ -80,12 +87,17 @@ async def update_profile(
     )
 
 
-@router.delete("", status_code=status.HTTP_200_OK, response_model=SuccessResponse[DeleteUserResponse])
+@router.delete(
+    "",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse[DeleteUserResponse],
+    dependencies=[Depends(rate_limiter(prefix="delete_profile"))]
+)
 async def delete_profile(token_data: dict = Depends(AccessTokenBearer()), db: AsyncSession = Depends(get_db)):
     """
     Delete the authenticated user's account.
 
-    Deletes the user's data and removes them from the system. Useful for account closure or GDPR compliance.
+    This endpoint is rate-limited to avoid repeated or automated account deletions.
 
     Args:
         token_data (dict): Decoded JWT token payload used to identify the user.
@@ -108,6 +120,7 @@ async def delete_profile(token_data: dict = Depends(AccessTokenBearer()), db: As
         raise UserDeletionFailed()
 
     logger.info("User account deleted: %s", user.email)
+
     return success_response(
         status_code=status.HTTP_200_OK,
         message="User account deleted successfully",
