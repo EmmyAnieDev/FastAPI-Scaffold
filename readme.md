@@ -4,15 +4,24 @@
 
 ## Features
 
---- List the main features of the API here ---
+- 🔐 **User Registration & Login** (JWT-based)  
+- 🛡️ **Token Refresh and Revocation**  
+- 🆔 **OAuth2 Integration** (e.g., Google login)  
+- 📧 **Email Verification** via Gmail SMTP  
+- 🔑 **Password Reset via Email**  
+- 👤 **User Profile Endpoints**  
+- 🧪 **Input Validation** using Pydantic v2  
+- ⚙️ **FastAPI Dependency Injection & Scalable Design**  
+- 📦 **Built with Poetry for environment and dependency management**  
+- 🗄️ **Database Migrations with Alembic**
 
 ## Tech Stack
 
 - **Framework**: FastAPI
-- **Database**: ---
-- **Authentication**: ---
-- **Email**: ---
-- **Validation**: ---
+- **Database**: POstgres
+- **Authentication**: JWT / OAUTH2
+- **Email**: Gmail SMTP
+- **Validation**: Pydantic V2
 - **Package Management**: Poetry
 
 ## Getting Started
@@ -32,13 +41,7 @@
   cd ---
 ```
 
-2. Install dependencies with Poetry:
-
-```bash
-  poetry install
-```
-
-3. Create a `.env` file in the project root:
+2. Create a `.env` file in the project root:
 
 ```bash
   cp .env.sample .env
@@ -130,7 +133,7 @@ Then edit the `.env` file with your specific configuration values.
 Build and start the containers:
 
 ```bash
-  docker-compose up -d
+  docker-compose up -d --build
 ```
 
 ### Option 2: (Using Poetry)
@@ -141,13 +144,7 @@ Build and start the containers:
   poetry shell
 ```
 
-2. Create the database:
-
-```bash
-  ---
-```
-
-3. Run the application:
+2. Run the application:
 
 ```bash
   uvicorn main:app --reload
@@ -187,22 +184,22 @@ For development dependencies:
 
 ### Database Migrations
 
-Initialize migrations (first time only):
+Initialize migrations **first time only**:
 
 ```bash
-  ---
+  alembic init alembic
 ```
 
-Create a new migration:
+Create a new migration **if you have made changes to the models**:
 
 ```bash
-  ---
+  alembic revision --autogenerate -m "migration message"
 ```
 
 Apply migrations:
 
 ```bash
-  ---
+  alembic upgrade head
 ```
 
 ## License
