@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from datetime import datetime
 from typing import Optional, Literal
+
+from app.api.exceptions.exceptions import PasswordMismatchError
 
 
 class UserBase(BaseModel):
@@ -9,7 +11,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: Optional[str] = Field(default=None, min_length=8)
+    confirm_password: Optional[str] = Field(default=None, min_length=8)
     provider: Optional[Literal["email", "google"]] = "email"
+
+    @validator("confirm_password")
+    def passwords_match(cls, v, values):
+        if "password" in values and v != values["password"]:
+            raise PasswordMismatchError()
+        return v
 
 
 class UserLogin(UserBase):
@@ -21,7 +30,7 @@ class GoogleMobileLoginRequest(BaseModel):
     platform: Literal["android", "ios"]
 
 
-### Rsponse Schemas ###
+### Response Schemas ###
 
 class AuthResponse(UserBase):
     id: str
