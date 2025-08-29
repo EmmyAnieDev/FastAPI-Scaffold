@@ -14,5 +14,5 @@ def test_validate_email_invalid():
     Should raise an AssertionError
     """
     with pytest.raises(AssertionError) as excinfo:
-        user = User(email="invalidemail")
+        User(email="invalidemail")
     assert str(excinfo.value) == "Invalid email format"
