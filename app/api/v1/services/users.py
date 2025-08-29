@@ -2,6 +2,7 @@ import logging
 
 from datetime import datetime
 from typing import Optional
+from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -163,45 +164,47 @@ class UserService:
         
         
     @staticmethod
-    async def initiate_password_reset(user: User) -> str:
+    async def initiate_password_reset(user: User, background_tasks: BackgroundTasks) -> str:
         """
         Generate a reset token and OTP for password reset, store them in Redis,
-        and send OTP to user's email.
+        and schedule OTP email sending as a background task.
 
         Args:
             user (User): The user requesting a password reset.
+            background_tasks (BackgroundTasks): FastAPI background tasks manager.
 
         Returns:
             str: The reset token to be used in subsequent steps.
 
         Raises:
-            Exception: If an error occurs during token/OTP generation or email sending.
+            Exception: If an error occurs during token/OTP generation.
         """
         try:
             # Generate reset token and OTP
             reset_token, reset_otp = await generate_reset_session(user.email)
-
+            
             # Prepare email context
             email_context = {
                 "email": user.email,
                 "verification_code": reset_otp
             }
-
-            # Send the OTP email
-            await send_email(
+            
+            # Schedule email sending as background task
+            background_tasks.add_task(
+                send_email,
                 recipients=[user.email],
                 template_name="password_reset.html",
                 subject="Reset Your Password",
                 context=email_context
             )
-
-            logger.info("Reset session created and email sent to %s", user.email)
+            
+            logger.info("Reset session created for %s, email queued", user.email)
             return reset_token
-
+            
         except Exception as e:
             logger.error("Error initiating password reset for %s: %s", user.email, str(e))
             raise
-
+        
         
     @staticmethod
     async def verify_reset_otp(data: VerifyResetOtpSchema) -> bool:

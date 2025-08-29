@@ -1,3 +1,4 @@
+from fastapi import BackgroundTasks
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
@@ -155,33 +156,35 @@ async def test_register_user_missing_password_email_provider(mock_db_session):
 
 @pytest.mark.asyncio
 async def test_initiate_password_reset_success():
-    """
-    Test that initiate_password_reset generates a token, stores OTP in Redis,
-    and calls send_email successfully.
-    """
     mock_user = User(email="user@example.com")
+    background_tasks = BackgroundTasks()
 
     with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
          patch("app.api.v1.services.users.send_email", new_callable=AsyncMock) as mock_send_email:
 
-        token = await UserService.initiate_password_reset(mock_user)
+        token = await UserService.initiate_password_reset(mock_user, background_tasks)
         assert token == "token123"
-        mock_send_email.assert_awaited_once()
+
+        assert len(background_tasks.tasks) == 1
+        task = background_tasks.tasks[0]
+        assert task.func == mock_send_email
+        assert task.kwargs["recipients"] == [mock_user.email]
 
 
 @pytest.mark.asyncio
 async def test_initiate_password_reset_failure():
-    """
-    Test that initiate_password_reset raises an exception if send_email fails.
-    """
     mock_user = User(email="fail@example.com")
+    background_tasks = BackgroundTasks()
 
     with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
          patch("app.api.v1.services.users.send_email", new_callable=AsyncMock, side_effect=Exception("SMTP fail")):
 
-        import pytest
+        token = await UserService.initiate_password_reset(mock_user, background_tasks)
+        assert token == "token123"
+
+        task = background_tasks.tasks[0]
         with pytest.raises(Exception) as exc_info:
-            await UserService.initiate_password_reset(mock_user)
+            await task.func(*task.args, **task.kwargs)
         assert str(exc_info.value) == "SMTP fail"
 
 

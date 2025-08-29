@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, status, Depends, Request, Response, Cookie
+from fastapi import APIRouter, BackgroundTasks, status, Depends, Request, Response, Cookie
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -227,14 +227,16 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
 )
 async def request_password_reset(
     data: ResetPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Initiate a password reset process by generating a one-time password (OTP)
-    and a reset token, then sending the OTP to the user's email.
+    and a reset token, then sending the OTP to the user's email in the background.
 
     Args:
         data (ResetPasswordRequest): The email of the user requesting password reset.
+        background_tasks (BackgroundTasks): FastAPI background tasks manager.
         db (AsyncSession): Asynchronous SQLAlchemy session.
 
     Returns:
@@ -246,9 +248,9 @@ async def request_password_reset(
     user = await UserService.get_user_by_email(data.email, db)
     if not user:
         raise InvalidCredentials()
-
-    reset_token = await UserService.initiate_password_reset(user)
-
+    
+    reset_token = await UserService.initiate_password_reset(user, background_tasks)
+    
     return success_response(
         status_code=status.HTTP_200_OK,
         message="Password reset OTP sent to your email",
