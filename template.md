@@ -37,6 +37,25 @@ rm -rf .git
     `authors = ["your-username <your@email.com>"]`
 
 
+### `app/api/core/dependencies/email_templates/base.html`
+change the below `---` to your application name
+
+```html
+<td valign="middle">
+    <p style="font-size: 18px; font-weight: 600; color: #16161A; margin: 0;">---</p>
+</td>
+```
+
+### `app/api/utils/send_email.py`
+change the below `---` to your application name
+
+```py
+email_conf = ConnectionConfig(
+    MAIL_FROM_NAME='---',
+)
+```
+
+
 ### 🗑️ Delete Template
 
 - Run the command below after completing the customization to keep your project clean.

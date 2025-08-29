@@ -65,6 +65,17 @@ class Settings(BaseSettings):
     # Frontend URL
     FRONTEND_URL: str = config("FRONTEND_URL", default="")
 
+    # Reset password configuration
+    RESET_SESSION_EXPIRY: int = config("RESET_SESSION_EXPIRY", default=60, cast=int)   # initial time to verify OTP
+    VERIFIED_RESET_EXPIRY: int = config("VERIFIED_RESET_EXPIRY", default=60, cast=int)  # time to reset password after OTP is verified
+
+    # Mail configurations
+    MAIL_USERNAME: str = config("MAIL_USERNAME", default="")
+    MAIL_PASSWORD: str = config("MAIL_PASSWORD", default="")
+    MAIL_FROM: str = config("MAIL_FROM", default="noreply@example.com")
+    MAIL_PORT: int = config("MAIL_PORT", default=587, cast=int)
+    MAIL_SERVER: str = config("MAIL_SERVER", default="smtp.example.com")
+
 
     class Config:
         env_file = ".env"

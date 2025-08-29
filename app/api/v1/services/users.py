@@ -5,8 +5,10 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.api.utils.reset_password_otp_token import cleanup_reset_session, generate_reset_session, get_verified_reset_email, verify_reset_otp_and_mark_verified
+from app.api.utils.send_email import send_email
 from app.api.v1.models.users import User
-from app.api.v1.schemas.auth import UserCreate
+from app.api.v1.schemas.auth import ConfirmResetPasswordSchema, UserCreate, VerifyResetOtpSchema
 from app.api.utils.token import generate_password_hash
 
 logger = logging.getLogger(__name__)
@@ -158,3 +160,106 @@ class UserService:
             await db.rollback()
             logger.error("Error deleting user %s: %s", user.email, str(e))
             return False
+        
+        
+    @staticmethod
+    async def initiate_password_reset(user: User) -> str:
+        """
+        Generate a reset token and OTP for password reset, store them in Redis,
+        and send OTP to user's email.
+
+        Args:
+            user (User): The user requesting a password reset.
+
+        Returns:
+            str: The reset token to be used in subsequent steps.
+
+        Raises:
+            Exception: If an error occurs during token/OTP generation or email sending.
+        """
+        try:
+            # Generate reset token and OTP
+            reset_token, reset_otp = await generate_reset_session(user.email)
+
+            # Prepare email context
+            email_context = {
+                "email": user.email,
+                "verification_code": reset_otp
+            }
+
+            # Send the OTP email
+            await send_email(
+                recipients=[user.email],
+                template_name="password_reset.html",
+                subject="Reset Your Password",
+                context=email_context
+            )
+
+            logger.info("Reset session created and email sent to %s", user.email)
+            return reset_token
+
+        except Exception as e:
+            logger.error("Error initiating password reset for %s: %s", user.email, str(e))
+            raise
+
+        
+    @staticmethod
+    async def verify_reset_otp(data: VerifyResetOtpSchema) -> bool:
+        """
+        Verify the OTP for a reset token and mark the token as verified.
+
+        Args:
+            data (VerifyResetOtpSchema): Schema containing reset token and OTP.
+
+        Returns:
+            bool: True if OTP is verified and token marked as verified, False otherwise.
+        """
+        try:
+            return await verify_reset_otp_and_mark_verified(data.reset_token, data.otp)
+        except Exception as e:
+            logger.error("Error verifying reset OTP: %s", str(e))
+            return False
+
+
+    @staticmethod
+    async def confirm_password_reset(data: ConfirmResetPasswordSchema, db: AsyncSession) -> Optional[User]:
+        """
+        Complete password reset using a verified reset token.
+
+        Args:
+            data (ConfirmResetPasswordSchema): Schema containing verified reset token and new password.
+            db (AsyncSession): Asynchronous SQLAlchemy session.
+
+        Returns:
+            Optional[User]: The updated user object if reset succeeds, else None.
+
+        Raises:
+            Exception: If token verification fails or database update encounters an error.
+        """
+        try:
+            # Check if reset token is verified and get email
+            email = await get_verified_reset_email(data.reset_token)
+            if not email:
+                return None
+
+            user = await UserService.get_user_by_email(email, db)
+            if not user:
+                return None
+
+            # Update password
+            hashed_password = generate_password_hash(data.new_password)
+            user.password_hash = hashed_password
+            user.updated_at = datetime.utcnow()
+
+            await user.save(db)
+
+            # Clean up the reset session
+            await cleanup_reset_session(data.reset_token)
+
+            logger.info("Password reset successful for user: %s", user.email)
+            return user
+
+        except Exception as e:
+            await db.rollback()
+            logger.error("Failed password reset: %s", str(e))
+            return None

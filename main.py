@@ -1,5 +1,7 @@
+from fastapi.templating import Jinja2Templates
 import uvicorn
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  
+TEMPLATE_DIR = os.path.join(BASE_DIR, "app/api/core/dependencies/email_templates")
+
+email_templates = Jinja2Templates(directory=TEMPLATE_DIR)
 
 register_all_errors(app)
 

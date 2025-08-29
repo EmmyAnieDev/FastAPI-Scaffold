@@ -6,7 +6,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from app.api.v1.schemas.auth import UserCreate, UserLogin, AuthResponse, TokenRefreshResponse, LogoutResponse
+from app.api.v1.schemas.auth import (
+    ConfirmResetPasswordSchema, ResetPasswordRequest, UserCreate,
+    UserLogin, AuthResponse, TokenRefreshResponse, LogoutResponse, VerifyResetOtpSchema
+)
 from app.api.v1.schemas.sucess_response import SuccessResponse
 from app.api.v1.services.users import UserService
 from app.api.utils.success_response import success_response
@@ -14,7 +17,7 @@ from app.api.utils.token import verify_password
 from app.api.utils.build_refresh_response import build_refresh_response
 from app.api.utils.build_auth_response import build_auth_response
 from app.api.exceptions.exceptions import (
-    InvalidCredentials, UserAlreadyExists, RefreshTokenExpired,
+    InvalidCredentials, InvalidToken, UserAlreadyExists, RefreshTokenExpired,
     RegistrationInitiationFailed,
 )
 from app.api.core.dependencies.auth import RefreshTokenBearer, AccessTokenBearer
@@ -214,3 +217,105 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
     )
 
     return logout_response
+
+
+@router.post(
+    "/password/reset/request",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse,
+    dependencies=[Depends(rate_limiter(prefix="reset_request", limit=3, window=3600))]
+)
+async def request_password_reset(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Initiate a password reset process by generating a one-time password (OTP)
+    and a reset token, then sending the OTP to the user's email.
+
+    Args:
+        data (ResetPasswordRequest): The email of the user requesting password reset.
+        db (AsyncSession): Asynchronous SQLAlchemy session.
+
+    Returns:
+        SuccessResponse: Success message with reset token for the next step.
+
+    Raises:
+        InvalidCredentials: If no user exists with the provided email.
+    """
+    user = await UserService.get_user_by_email(data.email, db)
+    if not user:
+        raise InvalidCredentials()
+
+    reset_token = await UserService.initiate_password_reset(user)
+
+    return success_response(
+        status_code=status.HTTP_200_OK,
+        message="Password reset OTP sent to your email",
+        data={"reset_token": reset_token}
+    )
+
+
+@router.post(
+    "/password/reset/verify",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse,
+    dependencies=[Depends(rate_limiter(prefix="reset_verify", limit=10, window=60))]
+)
+async def verify_reset_otp(data: VerifyResetOtpSchema,):
+    """
+    Verify the OTP for password reset and mark the reset token as verified.
+
+    Args:
+        data (VerifyResetOtpSchema): The reset token and OTP.
+        db (AsyncSession): Asynchronous SQLAlchemy session.
+
+    Returns:
+        SuccessResponse: Success message confirming OTP verification.
+
+    Raises:
+        InvalidToken: If the reset token or OTP is invalid.
+    """
+    is_verified = await UserService.verify_reset_otp(data)
+    if not is_verified:
+        raise InvalidToken("Invalid or expired OTP/token")
+
+    return success_response(
+        status_code=status.HTTP_200_OK,
+        message="OTP verified successfully. You can now reset your password.",
+        data=None
+    )
+
+
+@router.post(
+    "/password/reset/confirm",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse,
+    dependencies=[Depends(rate_limiter(prefix="reset_confirm", limit=5, window=600))]
+)
+async def confirm_password_reset(
+    data: ConfirmResetPasswordSchema,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Complete the password reset process using a verified reset token.
+
+    Args:
+        data (ConfirmResetPasswordSchema): The verified reset token and new password.
+        db (AsyncSession): Asynchronous SQLAlchemy session.
+
+    Returns:
+        SuccessResponse[ResetPasswordResponse]: Success message confirming password reset.
+
+    Raises:
+        InvalidToken: If the reset token is not verified or expired.
+    """
+    user = await UserService.confirm_password_reset(data, db)
+    if not user:
+        raise InvalidToken("Invalid or unverified reset token")
+
+    return success_response(
+        status_code=status.HTTP_200_OK,
+        message="Password reset successfully",
+        data=None
+    )

@@ -30,6 +30,27 @@ class GoogleMobileLoginRequest(BaseModel):
     platform: Literal["android", "ios"]
 
 
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOtpSchema(BaseModel):
+    reset_token: str
+    otp: str
+    
+
+class ConfirmResetPasswordSchema(BaseModel):
+    reset_token: str
+    new_password: str = Field(..., min_length=8)
+    confirm_password: str = Field(..., min_length=8)
+
+    @validator("confirm_password")
+    def passwords_match(cls, v, values):
+        if "new_password" in values and v != values["new_password"]:
+            raise PasswordMismatchError()
+        return v
+
+
 ### Response Schemas ###
 
 class AuthResponse(UserBase):
