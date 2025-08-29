@@ -151,3 +151,112 @@ async def test_register_user_missing_password_email_provider(mock_db_session):
     with patch.object(UserService, 'user_exists', return_value=False):
         result = await UserService.register_user(user_data, mock_db_session)
         assert result is None
+
+
+@pytest.mark.asyncio
+async def test_initiate_password_reset_success():
+    """
+    Test that initiate_password_reset generates a token, stores OTP in Redis,
+    and calls send_email successfully.
+    """
+    mock_user = User(email="user@example.com")
+
+    with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
+         patch("app.api.v1.services.users.send_email", new_callable=AsyncMock) as mock_send_email:
+
+        token = await UserService.initiate_password_reset(mock_user)
+        assert token == "token123"
+        mock_send_email.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_initiate_password_reset_failure():
+    """
+    Test that initiate_password_reset raises an exception if send_email fails.
+    """
+    mock_user = User(email="fail@example.com")
+
+    with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
+         patch("app.api.v1.services.users.send_email", new_callable=AsyncMock, side_effect=Exception("SMTP fail")):
+
+        import pytest
+        with pytest.raises(Exception) as exc_info:
+            await UserService.initiate_password_reset(mock_user)
+        assert str(exc_info.value) == "SMTP fail"
+
+
+@pytest.mark.asyncio
+async def test_verify_reset_otp_success():
+    """
+    Test that verify_reset_otp returns True when OTP is valid.
+    """
+    mock_data = MagicMock()
+    mock_data.reset_token = "token123"
+    mock_data.otp = "1234"
+
+    with patch("app.api.v1.services.users.verify_reset_otp_and_mark_verified", return_value=True):
+        result = await UserService.verify_reset_otp(mock_data)
+        assert result is True
+
+
+@pytest.mark.asyncio
+async def test_verify_reset_otp_failure():
+    """
+    Test that verify_reset_otp returns False when OTP verification fails.
+    """
+    mock_data = MagicMock()
+    mock_data.reset_token = "token123"
+    mock_data.otp = "9999"
+
+    with patch("app.api.v1.services.users.verify_reset_otp_and_mark_verified", return_value=False):
+        result = await UserService.verify_reset_otp(mock_data)
+        assert result is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_password_reset_success(mock_db_session):
+    """
+    Test that confirm_password_reset updates the user's password and cleans up the reset session.
+    """
+    data = MagicMock()
+    data.reset_token = "token123"
+    data.new_password = "newpass"
+
+    mock_user = User(email="user@example.com", password_hash="oldpass")
+    with patch("app.api.v1.services.users.get_verified_reset_email", return_value="user@example.com"), \
+         patch.object(UserService, "get_user_by_email", return_value=mock_user), \
+         patch("app.api.v1.services.users.generate_password_hash", return_value="hashedpass"), \
+         patch("app.api.utils.reset_password_otp_token.cleanup_reset_session", new_callable=AsyncMock):
+
+        updated_user = await UserService.confirm_password_reset(data, mock_db_session)
+        assert updated_user.password_hash == "hashedpass"
+
+
+@pytest.mark.asyncio
+async def test_confirm_password_reset_invalid_token(mock_db_session):
+    """
+    Test that confirm_password_reset returns None if reset token is not verified.
+    """
+    data = MagicMock()
+    data.reset_token = "token123"
+    data.new_password = "newpass"
+
+    with patch("app.api.v1.services.users.get_verified_reset_email", return_value=None):
+        result = await UserService.confirm_password_reset(data, mock_db_session)
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_password_reset_user_not_found(mock_db_session):
+    """
+    Test that confirm_password_reset returns None if user associated with token does not exist.
+    """
+    data = MagicMock()
+    data.reset_token = "token123"
+    data.new_password = "newpass"
+
+    with patch("app.api.v1.services.users.get_verified_reset_email", return_value="user@example.com"), \
+         patch.object(UserService, "get_user_by_email", return_value=None):
+
+        result = await UserService.confirm_password_reset(data, mock_db_session)
+        assert result is None

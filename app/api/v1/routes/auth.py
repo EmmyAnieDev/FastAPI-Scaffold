@@ -278,7 +278,7 @@ async def verify_reset_otp(data: VerifyResetOtpSchema,):
     """
     is_verified = await UserService.verify_reset_otp(data)
     if not is_verified:
-        raise InvalidToken("Invalid or expired OTP/token")
+        raise InvalidToken()
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -312,7 +312,7 @@ async def confirm_password_reset(
     """
     user = await UserService.confirm_password_reset(data, db)
     if not user:
-        raise InvalidToken("Invalid or unverified reset token")
+        raise InvalidToken()
 
     return success_response(
         status_code=status.HTTP_200_OK,

@@ -105,3 +105,133 @@ async def test_logout_success(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["message"] == "User logged out Successfully"
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.get_user_by_email", new_callable=AsyncMock)
+@patch("app.api.v1.services.users.UserService.initiate_password_reset", new_callable=AsyncMock)
+async def test_request_password_reset_success(mock_initiate_reset, mock_get_user):
+    """
+    Test initiating a password reset successfully returns a reset token.
+    """
+    mock_user = AsyncMock()
+    mock_user.email = "user@example.com"
+    mock_get_user.return_value = mock_user
+    mock_initiate_reset.return_value = "reset-token-123"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/request",
+            json={"email": "user@example.com"},
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["message"] == "Password reset OTP sent to your email"
+    assert response.json()["data"]["reset_token"] == "reset-token-123"
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.verify_reset_otp", new_callable=AsyncMock)
+async def test_verify_reset_otp_success(mock_verify_otp):
+    """
+    Test successful OTP verification for password reset.
+    """
+    mock_verify_otp.return_value = True
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/verify",
+            json={"reset_token": "reset-token-123", "otp": "1234"},
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["message"] == "OTP verified successfully. You can now reset your password."
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.confirm_password_reset", new_callable=AsyncMock)
+async def test_confirm_password_reset_success(mock_confirm_reset):
+    """
+    Test confirming password reset updates the user's password successfully.
+    """
+    mock_user = AsyncMock()
+    mock_user.email = "user@example.com"
+    mock_confirm_reset.return_value = mock_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/confirm",
+            json={
+                "reset_token": "reset-token-123",
+                "new_password": "newpass123",
+                "confirm_password": "newpass123"
+            },
+        )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["message"] == "Password reset successfully"
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.get_user_by_email", new_callable=AsyncMock)
+async def test_request_password_reset_invalid_email(mock_get_user):
+    """
+    Test that requesting password reset with unknown email returns proper JSON response.
+    """
+    mock_get_user.return_value = None
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/request",
+            json={"email": "unknown@example.com"},
+        )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    json_response = response.json()
+    assert json_response["message"] == "Invalid credetials"
+    assert json_response["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.verify_reset_otp", new_callable=AsyncMock)
+async def test_verify_reset_otp_invalid(mock_verify_otp):
+    """
+    Test that invalid OTP verification returns proper JSON response.
+    """
+    mock_verify_otp.return_value = False
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/verify",
+            json={"reset_token": "reset-token-123", "otp": "0000"},
+        )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    json_response = response.json()
+    assert json_response["message"] == "Invalid or expired token"
+    assert json_response["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.confirm_password_reset", new_callable=AsyncMock)
+async def test_confirm_password_reset_invalid_token(mock_confirm_reset):
+    """
+    Test that confirming password reset with invalid/unverified token returns proper JSON response.
+    """
+    mock_confirm_reset.return_value = None
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/confirm",
+            json={
+                "reset_token": "invalid-token",
+                "new_password": "newpass123",
+                "confirm_password": "newpass123"
+            },
+        )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    json_response = response.json()
+    assert json_response["message"] == "Invalid or expired token"
+    assert json_response["data"] is None
