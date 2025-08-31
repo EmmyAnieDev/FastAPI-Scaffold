@@ -35,12 +35,12 @@ class ResetPasswordRequest(BaseModel):
 
 
 class VerifyResetOtpSchema(BaseModel):
-    reset_token: str
+    verification_token: str
     otp: str
     
 
 class ConfirmResetPasswordSchema(BaseModel):
-    reset_token: str
+    verification_token: str
     new_password: str = Field(..., min_length=8)
     confirm_password: str = Field(..., min_length=8)
 

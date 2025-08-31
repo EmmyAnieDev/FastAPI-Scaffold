@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = config("FRONTEND_URL", default="")
 
     # Reset password configuration
-    RESET_SESSION_EXPIRY: int = config("RESET_SESSION_EXPIRY", default=60, cast=int)   # initial time to verify OTP
+    VERIFIED_SESSION_EXPIRY: int = config("VERIFIED_SESSION_EXPIRY", default=60, cast=int)   # initial time to verify OTP
     VERIFIED_RESET_EXPIRY: int = config("VERIFIED_RESET_EXPIRY", default=60, cast=int)  # time to reset password after OTP is verified
 
     # Mail configurations

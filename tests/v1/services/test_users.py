@@ -159,7 +159,7 @@ async def test_initiate_password_reset_success():
     mock_user = User(email="user@example.com")
     background_tasks = BackgroundTasks()
 
-    with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
+    with patch("app.api.v1.services.users.generate_verification_session", return_value=("token123", "1234")), \
          patch("app.api.v1.services.users.send_email", new_callable=AsyncMock) as mock_send_email:
 
         token = await UserService.initiate_password_reset(mock_user, background_tasks)
@@ -176,7 +176,7 @@ async def test_initiate_password_reset_failure():
     mock_user = User(email="fail@example.com")
     background_tasks = BackgroundTasks()
 
-    with patch("app.api.v1.services.users.generate_reset_session", return_value=("token123", "1234")), \
+    with patch("app.api.v1.services.users.generate_verification_session", return_value=("token123", "1234")), \
          patch("app.api.v1.services.users.send_email", new_callable=AsyncMock, side_effect=Exception("SMTP fail")):
 
         token = await UserService.initiate_password_reset(mock_user, background_tasks)
@@ -197,7 +197,7 @@ async def test_verify_reset_otp_success():
     mock_data.reset_token = "token123"
     mock_data.otp = "1234"
 
-    with patch("app.api.v1.services.users.verify_reset_otp_and_mark_verified", return_value=True):
+    with patch("app.api.v1.services.users.verify_otp_and_mark_verified", return_value=True):
         result = await UserService.verify_reset_otp(mock_data)
         assert result is True
 
@@ -211,7 +211,7 @@ async def test_verify_reset_otp_failure():
     mock_data.reset_token = "token123"
     mock_data.otp = "9999"
 
-    with patch("app.api.v1.services.users.verify_reset_otp_and_mark_verified", return_value=False):
+    with patch("app.api.v1.services.users.verify_otp_and_mark_verified", return_value=False):
         result = await UserService.verify_reset_otp(mock_data)
         assert result is False
 
@@ -226,10 +226,10 @@ async def test_confirm_password_reset_success(mock_db_session):
     data.new_password = "newpass"
 
     mock_user = User(email="user@example.com", password_hash="oldpass")
-    with patch("app.api.v1.services.users.get_verified_reset_email", return_value="user@example.com"), \
+    with patch("app.api.v1.services.users.get_verified_session_email", return_value="user@example.com"), \
          patch.object(UserService, "get_user_by_email", return_value=mock_user), \
          patch("app.api.v1.services.users.generate_password_hash", return_value="hashedpass"), \
-         patch("app.api.utils.reset_password_otp_token.cleanup_reset_session", new_callable=AsyncMock):
+         patch("app.api.utils.verification_otp_token.cleanup_verification_session", new_callable=AsyncMock):
 
         updated_user = await UserService.confirm_password_reset(data, mock_db_session)
         assert updated_user.password_hash == "hashedpass"
@@ -244,7 +244,7 @@ async def test_confirm_password_reset_invalid_token(mock_db_session):
     data.reset_token = "token123"
     data.new_password = "newpass"
 
-    with patch("app.api.v1.services.users.get_verified_reset_email", return_value=None):
+    with patch("app.api.v1.services.users.get_verified_session_email", return_value=None):
         result = await UserService.confirm_password_reset(data, mock_db_session)
         assert result is None
 
@@ -258,7 +258,7 @@ async def test_confirm_password_reset_user_not_found(mock_db_session):
     data.reset_token = "token123"
     data.new_password = "newpass"
 
-    with patch("app.api.v1.services.users.get_verified_reset_email", return_value="user@example.com"), \
+    with patch("app.api.v1.services.users.get_verified_session_email", return_value="user@example.com"), \
          patch.object(UserService, "get_user_by_email", return_value=None):
 
         result = await UserService.confirm_password_reset(data, mock_db_session)

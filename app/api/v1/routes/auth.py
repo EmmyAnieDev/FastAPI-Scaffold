@@ -232,7 +232,7 @@ async def request_password_reset(
 ):
     """
     Initiate a password reset process by generating a one-time password (OTP)
-    and a reset token, then sending the OTP to the user's email in the background.
+    and a verification token, then sending the OTP to the user's email in the background.
 
     Args:
         data (ResetPasswordRequest): The email of the user requesting password reset.
@@ -240,7 +240,7 @@ async def request_password_reset(
         db (AsyncSession): Asynchronous SQLAlchemy session.
 
     Returns:
-        SuccessResponse: Success message with reset token for the next step.
+        SuccessResponse: Success message with verification token for the next step.
 
     Raises:
         InvalidCredentials: If no user exists with the provided email.
@@ -249,12 +249,12 @@ async def request_password_reset(
     if not user:
         raise InvalidCredentials()
     
-    reset_token = await UserService.initiate_password_reset(user, background_tasks)
+    verification_token = await UserService.initiate_password_reset(user, background_tasks)
     
     return success_response(
         status_code=status.HTTP_200_OK,
         message="Password reset OTP sent to your email",
-        data={"reset_token": reset_token}
+        data={"verification_token": verification_token}
     )
 
 
@@ -264,19 +264,18 @@ async def request_password_reset(
     response_model=SuccessResponse,
     dependencies=[Depends(rate_limiter(prefix="reset_verify", limit=10, window=60))]
 )
-async def verify_reset_otp(data: VerifyResetOtpSchema,):
+async def verify_reset_otp(data: VerifyResetOtpSchema):
     """
-    Verify the OTP for password reset and mark the reset token as verified.
+    Verify the OTP for password reset and mark the verification token as verified.
 
     Args:
-        data (VerifyResetOtpSchema): The reset token and OTP.
-        db (AsyncSession): Asynchronous SQLAlchemy session.
+        data (VerifyResetOtpSchema): The verification token and OTP.
 
     Returns:
         SuccessResponse: Success message confirming OTP verification.
 
     Raises:
-        InvalidToken: If the reset token or OTP is invalid.
+        InvalidToken: If the verification token or OTP is invalid.
     """
     is_verified = await UserService.verify_reset_otp(data)
     if not is_verified:
@@ -300,17 +299,17 @@ async def confirm_password_reset(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Complete the password reset process using a verified reset token.
+    Complete the password reset process using a verified verification token.
 
     Args:
-        data (ConfirmResetPasswordSchema): The verified reset token and new password.
+        data (ConfirmResetPasswordSchema): The verified verification token and new password.
         db (AsyncSession): Asynchronous SQLAlchemy session.
 
     Returns:
         SuccessResponse[ResetPasswordResponse]: Success message confirming password reset.
 
     Raises:
-        InvalidToken: If the reset token is not verified or expired.
+        InvalidToken: If the verification token is not verified or expired.
     """
     user = await UserService.confirm_password_reset(data, db)
     if not user:

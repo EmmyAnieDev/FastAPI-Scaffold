@@ -35,7 +35,7 @@ def test_confirm_reset_password_match():
     Should succeed when passwords match
     """
     data = {
-        "reset_token": "sometoken",
+        "verification_token": "sometoken",
         "new_password": "newstrongpassword",
         "confirm_password": "newstrongpassword"
     }
@@ -49,7 +49,7 @@ def test_confirm_reset_password_mismatch():
     Should raise PasswordMismatchError when passwords don't match
     """
     data = {
-        "reset_token": "sometoken",
+        "verification_token": "sometoken",
         "new_password": "newstrongpassword",
         "confirm_password": "wrongpassword"
     }

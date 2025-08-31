@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.api.utils.reset_password_otp_token import cleanup_reset_session, generate_reset_session, get_verified_reset_email, verify_reset_otp_and_mark_verified
+from app.api.utils.verification_otp_token import generate_verification_session, verify_otp_and_mark_verified, get_verified_session_email, cleanup_verification_session   
 from app.api.utils.send_email import send_email
 from app.api.v1.models.users import User
 from app.api.v1.schemas.auth import ConfirmResetPasswordSchema, UserCreate, VerifyResetOtpSchema
@@ -166,7 +166,7 @@ class UserService:
     @staticmethod
     async def initiate_password_reset(user: User, background_tasks: BackgroundTasks) -> str:
         """
-        Generate a reset token and OTP for password reset, store them in Redis,
+        Generate a verification token and OTP for password reset, store them in Redis,
         and schedule OTP email sending as a background task.
 
         Args:
@@ -174,19 +174,19 @@ class UserService:
             background_tasks (BackgroundTasks): FastAPI background tasks manager.
 
         Returns:
-            str: The reset token to be used in subsequent steps.
+            str: The verification token to be used in subsequent steps.
 
         Raises:
             Exception: If an error occurs during token/OTP generation.
         """
         try:
-            # Generate reset token and OTP
-            reset_token, reset_otp = await generate_reset_session(user.email)
+            # Generate verification token and OTP
+            verification_token, otp = await generate_verification_session(user.email, purpose="reset_password")
             
             # Prepare email context
             email_context = {
                 "email": user.email,
-                "verification_code": reset_otp
+                "verification_code": otp
             }
             
             # Schedule email sending as background task
@@ -199,26 +199,30 @@ class UserService:
             )
             
             logger.info("Reset session created for %s, email queued", user.email)
-            return reset_token
+            return verification_token
             
         except Exception as e:
             logger.error("Error initiating password reset for %s: %s", user.email, str(e))
             raise
-        
-        
+
+
     @staticmethod
     async def verify_reset_otp(data: VerifyResetOtpSchema) -> bool:
         """
-        Verify the OTP for a reset token and mark the token as verified.
+        Verify the OTP for a verification token and mark the token as verified.
 
         Args:
-            data (VerifyResetOtpSchema): Schema containing reset token and OTP.
+            data (VerifyResetOtpSchema): Schema containing verification token and OTP.
 
         Returns:
             bool: True if OTP is verified and token marked as verified, False otherwise.
         """
         try:
-            return await verify_reset_otp_and_mark_verified(data.reset_token, data.otp)
+            return await verify_otp_and_mark_verified(
+                purpose="reset_password",
+                verification_token=data.verification_token,
+                otp=data.otp
+            )
         except Exception as e:
             logger.error("Error verifying reset OTP: %s", str(e))
             return False
@@ -227,10 +231,10 @@ class UserService:
     @staticmethod
     async def confirm_password_reset(data: ConfirmResetPasswordSchema, db: AsyncSession) -> Optional[User]:
         """
-        Complete password reset using a verified reset token.
+        Complete password reset using a verified verification token.
 
         Args:
-            data (ConfirmResetPasswordSchema): Schema containing verified reset token and new password.
+            data (ConfirmResetPasswordSchema): Schema containing verified verification token and new password.
             db (AsyncSession): Asynchronous SQLAlchemy session.
 
         Returns:
@@ -240,8 +244,8 @@ class UserService:
             Exception: If token verification fails or database update encounters an error.
         """
         try:
-            # Check if reset token is verified and get email
-            email = await get_verified_reset_email(data.reset_token)
+            # Check if verification token is verified and get email
+            email = await get_verified_session_email(purpose="reset_password", verification_token=data.verification_token)
             if not email:
                 return None
 
@@ -257,7 +261,7 @@ class UserService:
             await user.save(db)
 
             # Clean up the reset session
-            await cleanup_reset_session(data.reset_token)
+            await cleanup_verification_session(purpose="reset_password", verification_token=data.verification_token)
 
             logger.info("Password reset successful for user: %s", user.email)
             return user
