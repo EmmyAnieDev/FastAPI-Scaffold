@@ -22,7 +22,7 @@ async def generate_verification_session(email: str, purpose: str) -> Tuple[str, 
     (e.g., "reset_password", "email_verification"). The session allows 
     the system to verify ownership of the email before proceeding with 
     sensitive operations. The session automatically expires after 
-    `settings.RESET_SESSION_EXPIRY` seconds if the OTP is not verified.
+    `settings.VERIFICATION_SESSION_EXPIRY` seconds if the OTP is not verified.
 
     Args:
         email (str): The email address associated with the verification request.
@@ -48,14 +48,14 @@ async def generate_verification_session(email: str, purpose: str) -> Tuple[str, 
 
         session_key = f"verification_session:{purpose}:{verification_token}"
         await redis_client.hset(session_key, mapping=session_data)
-        await redis_client.expire(session_key, settings.VERIFIED_SESSION_EXPIRY)
+        await redis_client.expire(session_key, settings.VERIFICATION_SESSION_EXPIRY)
 
         logger.info(
             "[VERIFICATION_SESSION_SAVED] purpose=%s email=%s token=%s otp=**** expiry=%ss",
             purpose,
             email,
             verification_token[:8] + "...",
-            settings.VERIFIED_SESSION_EXPIRY
+            settings.VERIFICATION_SESSION_EXPIRY
         )
 
         return verification_token, otp
@@ -73,10 +73,13 @@ async def generate_verification_session(email: str, purpose: str) -> Tuple[str, 
 async def verify_otp_and_mark_verified(purpose: str, verification_token: str, otp: str) -> bool:
     """
     Verify the OTP for a verification session and mark it as verified.
+    To proceed with sensitive actions (e.g., password reset, email change),
+    the user must provide the correct OTP sent to their email.
 
     If the provided OTP matches the one stored in Redis for the given purpose
     and verification token, the session is marked verified and its expiry is
-    extended to `settings.VERIFIED_SESSION_EXPIRY`.
+    extended to `settings.VERIFIED_SESSION_EXPIRY`. to allow time to complete
+    the intended action (e.g., reset password, change email).
 
     Args:
         purpose (str): The type of verification (e.g., "reset_password").
@@ -107,14 +110,14 @@ async def verify_otp_and_mark_verified(purpose: str, verification_token: str, ot
             return False
 
         await redis_client.hset(session_key, "verified", "true")
-        await redis_client.expire(session_key, settings.VERIFIED_RESET_EXPIRY)
+        await redis_client.expire(session_key, settings.VERIFIED_SESSION_EXPIRY)
 
         logger.info(
             "[VERIFICATION_SESSION_VERIFIED] purpose=%s token=%s email=%s extended_expiry=%ss",
             purpose,
             verification_token[:8] + "...",
             session_data.get("email"),
-            settings.VERIFIED_RESET_EXPIRY,
+            settings.VERIFIED_SESSION_EXPIRY,
         )
         return True
 

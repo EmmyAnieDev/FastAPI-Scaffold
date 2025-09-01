@@ -64,10 +64,10 @@ class Settings(BaseSettings):
 
     # Frontend URL
     FRONTEND_URL: str = config("FRONTEND_URL", default="")
-
-    # Reset password configuration
-    VERIFIED_SESSION_EXPIRY: int = config("VERIFIED_SESSION_EXPIRY", default=60, cast=int)   # initial time to verify OTP
-    VERIFIED_RESET_EXPIRY: int = config("VERIFIED_RESET_EXPIRY", default=60, cast=int)  # time to reset password after OTP is verified
+    
+    # OTP configuration
+    VERIFICATION_SESSION_EXPIRY: int = config("VERIFICATION_SESSION_EXPIRY", default=1800, cast=int)  # 30 minutes to enter OTP
+    VERIFIED_SESSION_EXPIRY: int = config("VERIFIED_SESSION_EXPIRY", default=600, cast=int)   # 10 minutes to complete action after OTP verified
 
     # Mail configurations
     MAIL_USERNAME: str = config("MAIL_USERNAME", default="")

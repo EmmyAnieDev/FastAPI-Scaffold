@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from config import settings
 from app.api.utils.verification_otp_token import generate_verification_session, verify_otp_and_mark_verified, get_verified_session_email, cleanup_verification_session   
 from app.api.utils.send_email import send_email
 from app.api.v1.models.users import User
@@ -186,7 +187,9 @@ class UserService:
             # Prepare email context
             email_context = {
                 "email": user.email,
-                "verification_code": otp
+                "verification_code": otp,
+                "verification_expiry": settings.VERIFICATION_SESSION_EXPIRY // 60, # in minutes
+                "verified_expiry": settings.VERIFIED_SESSION_EXPIRY // 60, # in minutes
             }
             
             # Schedule email sending as background task
