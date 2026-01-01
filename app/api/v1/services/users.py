@@ -6,8 +6,9 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.api.core.redis import redis_client
 from config import settings
-from app.api.utils.verification_otp_token import generate_verification_session, verify_otp_and_mark_verified, get_verified_session_email, cleanup_verification_session   
+from app.api.utils.verification_otp_token import can_resend, generate_verification_session, update_resend, verify_otp_and_mark_verified, get_verified_session_email, cleanup_verification_session   
 from app.api.utils.send_email import send_email
 from app.api.v1.models.users import User
 from app.api.v1.schemas.auth import ConfirmResetPasswordSchema, UserCreate, VerifyResetOtpSchema
@@ -207,6 +208,87 @@ class UserService:
         except Exception as e:
             logger.error("Error initiating password reset for %s: %s", user.email, str(e))
             raise
+
+    
+    @staticmethod
+    async def resend_password_reset_otp(verification_token: str, background_tasks: BackgroundTasks, db: AsyncSession) -> bool:
+        """
+        Resend password reset OTP for an existing unverified reset session.
+
+        Args:
+            verification_token (str): The verification token from initial reset request.
+            background_tasks (BackgroundTasks): FastAPI background tasks manager.
+            db (AsyncSession): Asynchronous SQLAlchemy session.
+
+        Returns:
+            bool: True if OTP resent successfully, False otherwise.
+        """
+        try:
+            session_key = f"verification_session:reset_password:{verification_token}"
+            session_data = await redis_client.hgetall(session_key)
+
+            # Check if session exists
+            if not session_data:
+                logger.warning("Reset session not found for resend: %s", verification_token[:8] + "...")
+                return False
+
+            # Check if already verified
+            if session_data.get("verified") == "true":
+                logger.warning("Cannot resend OTP for already verified reset session: %s", verification_token[:8] + "...")
+                return False
+
+            # Check purpose
+            if session_data.get("purpose") != "reset_password":
+                logger.warning("Invalid purpose for password reset resend: %s", verification_token[:8] + "...")
+                return False
+
+            # Check resend cooldown and max attempts
+            if not await can_resend(session_key):
+                logger.warning("Resend blocked by cooldown or max attempts for reset token: %s", verification_token[:8] + "...")
+                return False
+
+            email = session_data.get("email")
+            if not email:
+                logger.error("No email found in reset session for resend: %s", verification_token[:8] + "...")
+                return False
+
+            # Verify user still exists in database
+            user = await UserService.get_user_by_email(email, db)
+            if not user:
+                logger.warning("User no longer exists for password reset resend: %s", email)
+                return False
+
+            # Generate new OTP
+            new_otp = f"{random.randint(1000, 9999)}"
+            await update_resend(session_key, new_otp)
+            
+            # Update session with new OTP and reset expiry
+            await redis_client.hset(session_key, "otp", new_otp)
+            await redis_client.expire(session_key, settings.VERIFICATION_SESSION_EXPIRY)
+
+            # Prepare email context
+            email_context = {
+                "email": email,
+                "verification_code": new_otp,
+                "verification_expiry": settings.VERIFICATION_SESSION_EXPIRY // 60, # in minutes
+                "verified_expiry": settings.VERIFIED_SESSION_EXPIRY // 60, # in minutes
+            }
+
+            # Schedule email sending as background task
+            background_tasks.add_task(
+                send_email,
+                recipients=[email],
+                template_name="password_reset.html",
+                subject="Reset Your Password",
+                context=email_context
+            )
+
+            logger.info("Password reset OTP resent for %s", email)
+            return True
+
+        except Exception as e:
+            logger.error("Error resending password reset OTP: %s", str(e))
+            return False
 
 
     @staticmethod

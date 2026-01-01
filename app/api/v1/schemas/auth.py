@@ -51,6 +51,10 @@ class ConfirmResetPasswordSchema(BaseModel):
         return v
 
 
+class ResendOtpSchema(BaseModel):
+    verification_token: str
+
+
 ### Response Schemas ###
 
 class AuthResponse(UserBase):

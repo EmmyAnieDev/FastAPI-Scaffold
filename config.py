@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     # OTP configuration
     VERIFICATION_SESSION_EXPIRY: int = config("VERIFICATION_SESSION_EXPIRY", default=1800, cast=int)  # 30 minutes to enter OTP
     VERIFIED_SESSION_EXPIRY: int = config("VERIFIED_SESSION_EXPIRY", default=600, cast=int)   # 10 minutes to complete action after OTP verified
+    RESEND_COOLDOWN_SECONDS : int = config("RESEND_COOLDOWN_SECONDS", default=60, cast=int)  # 1 minute cooldown between resends
+    MAX_RESENDS : int = config("MAX_RESENDS", default=5, cast=int) # Max number of resends allowed
 
     # Mail configurations
     MAIL_USERNAME: str = config("MAIL_USERNAME", default="")

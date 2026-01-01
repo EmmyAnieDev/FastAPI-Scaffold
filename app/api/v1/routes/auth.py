@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from app.api.v1.schemas.auth import (
-    ConfirmResetPasswordSchema, ResetPasswordRequest, UserCreate,
+    ConfirmResetPasswordSchema, ResendOtpSchema, ResetPasswordRequest, UserCreate,
     UserLogin, AuthResponse, TokenRefreshResponse, LogoutResponse, VerifyResetOtpSchema
 )
 from app.api.v1.schemas.sucess_response import SuccessResponse
@@ -220,7 +220,7 @@ async def logout(request: Request, token_data: dict = Depends(AccessTokenBearer(
 
 
 @router.post(
-    "/password/reset/request",
+    "/password/reset/requests",
     status_code=status.HTTP_200_OK,
     response_model=SuccessResponse,
     dependencies=[Depends(rate_limiter(prefix="reset_request", limit=3, window=3600))]
@@ -255,6 +255,54 @@ async def request_password_reset(
         status_code=status.HTTP_200_OK,
         message="Password reset OTP sent to your email",
         data={"verification_token": verification_token}
+    )
+
+
+@router.post(
+    "/password/reset/resend",
+    status_code=status.HTTP_200_OK,
+    response_model=SuccessResponse,
+    dependencies=[Depends(rate_limiter(prefix="reset_resend", limit=3, window=1800))]
+)
+async def resend_password_reset_otp(
+    data: ResendOtpSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Resend password reset OTP.
+    
+    This endpoint allows users to request a new OTP if they didn't receive
+    the original reset otp or if it expired.
+    Users can only request a limited number of resends within a time period (1 minute cooldown, max 3 resends).
+
+    Rate limited to 3 attempts per 30 minutes to prevent abuse.
+
+    Args:
+        data (ResendOtpSchema): Contains the verification token.
+        background_tasks (BackgroundTasks): FastAPI background tasks manager.
+        db (AsyncSession): Asynchronous SQLAlchemy session.
+
+    Returns:
+        Standard success response confirming OTP resend.
+
+    Raises:
+        InvalidToken: If the verification token is invalid or already verified.
+    """
+    logger.info("Resend password reset OTP requested for token: %s", data.verification_token[:8] + "...")
+
+    success = await UserService.resend_password_reset_otp(data.verification_token, background_tasks, db)
+    
+    if not success:
+        logger.warning("Failed to resend password reset OTP for token: %s", data.verification_token[:8] + "...")
+        raise InvalidToken("Invalid or already verified token")
+
+    logger.info("Password reset OTP resent successfully for token: %s", data.verification_token[:8] + "...")
+
+    return success_response(
+        status_code=status.HTTP_200_OK,
+        message="Password reset code resent. Please check your email.",
+        data=None
     )
 
 

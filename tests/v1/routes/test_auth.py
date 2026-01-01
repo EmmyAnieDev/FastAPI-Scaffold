@@ -2,6 +2,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from unittest.mock import AsyncMock, patch
 from fastapi import status
+from app.api.v1.schemas.auth import ResendOtpSchema
 from main import app
 
 
@@ -230,6 +231,50 @@ async def test_confirm_password_reset_invalid_token(mock_confirm_reset):
                 "new_password": "newpass123",
                 "confirm_password": "newpass123"
             },
+        )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    json_response = response.json()
+    assert json_response["message"] == "Invalid or expired token"
+    assert json_response["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.resend_password_reset_otp", new_callable=AsyncMock)
+async def test_resend_password_reset_otp_success(mock_resend_reset):
+    """
+    Test successful resend of password reset OTP.
+    """
+    mock_resend_reset.return_value = True
+
+    resend_data = ResendOtpSchema(verification_token="verification-token-123")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/resend",
+            json=resend_data.dict(),
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+    json_response = response.json()
+    assert json_response["message"] == "Password reset code resent. Please check your email."
+    assert json_response["data"] is None
+
+
+@pytest.mark.asyncio(scope="session")
+@patch("app.api.v1.services.users.UserService.resend_password_reset_otp", new_callable=AsyncMock)
+async def test_resend_password_reset_otp_invalid_token(mock_resend_reset):
+    """
+    Test resend password reset OTP with invalid token.
+    """
+    mock_resend_reset.return_value = False
+
+    resend_data = ResendOtpSchema(verification_token="invalid-token")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post(
+            "/api/v1/auth/password/reset/resend",
+            json=resend_data.dict(),
         )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED

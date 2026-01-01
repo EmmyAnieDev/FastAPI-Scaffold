@@ -43,7 +43,9 @@ async def generate_verification_session(email: str, purpose: str) -> Tuple[str, 
             "otp": otp,
             "verified": "false",
             "purpose": purpose,
-            "created_at": str(int(time.time()))
+            "created_at": str(int(time.time())),
+            "last_sent_at": str(int(time.time())),
+            "resend_count": "0"  # Track number of OTP resends
         }
 
         session_key = f"verification_session:{purpose}:{verification_token}"
@@ -208,5 +210,124 @@ async def cleanup_verification_session(purpose: str, verification_token: str) ->
             "[VERIFICATION_SESSION_CLEANUP_ERROR] purpose=%s token=%s error=%s",
             purpose,
             verification_token[:8] + "...",
+            str(e)
+        )
+
+
+async def can_resend(session_key: str) -> bool:
+    """
+    Check if OTP can be resent for a verification session.
+
+    This function enforces a cooldown period (`RESEND_COOLDOWN_SECONDS`) between OTP resends
+    and a maximum number of allowed resends (`MAX_RESENDS`). It checks the session data in Redis
+    for the last sent timestamp and the resend count.
+
+    Args:
+        session_key (str): The Redis key for the verification session.
+
+    Returns:
+        bool: True if OTP can be resent, False otherwise.
+    """
+    try:
+        session_data = await redis_client.hgetall(session_key)
+        if not session_data:
+            logger.warning(
+                "[VERIFICATION_SESSION_CAN_RESEND_NOT_FOUND] session_key=%s",
+                session_key[:20] + "..."
+            )
+            return False
+
+        last_sent_at = session_data.get("last_sent_at")
+        resend_count = int(session_data.get("resend_count", "0"))
+
+        logger.debug(
+            "[VERIFICATION_SESSION_CAN_RESEND_CHECK] session_key=%s last_sent_at=%s resend_count=%d",
+            session_key[:20] + "...",
+            last_sent_at,
+            resend_count
+        )
+
+        now = int(time.time())
+
+        # Cooldown check
+        if last_sent_at and (now - int(last_sent_at)) < settings.RESEND_COOLDOWN_SECONDS:
+            logger.info(
+                "[VERIFICATION_SESSION_CAN_RESEND_COOLDOWN] session_key=%s last_sent_at=%s now=%s cooldown=%ss",
+                session_key[:20] + "...",
+                last_sent_at,
+                now,
+                settings.RESEND_COOLDOWN_SECONDS
+            )
+            return False
+
+        # Max resend check
+        if resend_count >= settings.MAX_RESENDS:
+            logger.info(
+                "[VERIFICATION_SESSION_CAN_RESEND_MAX_REACHED] session_key=%s resend_count=%d max_resends=%d",
+                session_key[:20] + "...",
+                resend_count,
+                settings.MAX_RESENDS
+            )
+            return False
+
+        logger.info(
+            "[VERIFICATION_SESSION_CAN_RESEND_ALLOWED] session_key=%s resend_count=%d",
+            session_key[:20] + "...",
+            resend_count
+        )
+        return True
+    except Exception as e:
+        logger.error(
+            "[VERIFICATION_SESSION_CAN_RESEND_ERROR] session_key=%s error=%s",
+            session_key[:20] + "...",
+            str(e)
+        )
+        return False
+
+
+async def update_resend(session_key: str, new_otp: str) -> None:
+    """
+    Update the OTP and resend metadata for a verification session.
+
+    This function updates the OTP, the last sent timestamp, and the resend count in Redis.
+    It also resets the session expiry to `settings.VERIFICATION_SESSION_EXPIRY`.
+
+    Args:
+        session_key (str): The Redis key for the verification session.
+        new_otp (str): The new OTP to set for the session.
+    """
+    try:
+        now = int(time.time())
+        session_data = await redis_client.hgetall(session_key)
+
+        if not session_data:
+            logger.warning(
+                "[VERIFICATION_SESSION_UPDATE_RESEND_NOT_FOUND] session_key=%s",
+                session_key[:20] + "..."
+            )
+            return
+
+        resend_count = int(session_data.get("resend_count", "0"))
+
+        await redis_client.hset(
+            session_key,
+            mapping={
+                "otp": new_otp,
+                "last_sent_at": str(now),
+                "resend_count": str(resend_count + 1),
+            },
+        )
+        await redis_client.expire(session_key, settings.VERIFICATION_SESSION_EXPIRY)
+
+        logger.info(
+            "[VERIFICATION_SESSION_RESEND_UPDATED] session_key=%s new_otp=**** resend_count=%d time=%s",
+            session_key[:20] + "...",
+            resend_count + 1,
+            now
+        )
+    except Exception as e:
+        logger.error(
+            "[VERIFICATION_SESSION_UPDATE_RESEND_ERROR] session_key=%s error=%s",
+            session_key[:20] + "...",
             str(e)
         )

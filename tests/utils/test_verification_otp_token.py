@@ -167,3 +167,81 @@ async def test_cleanup_verification_session_failure():
     with patch("app.api.utils.verification_otp_token.redis_client") as mock_redis:
         mock_redis.delete = AsyncMock(side_effect=Exception("Redis down"))
         await verification_otp_token.cleanup_verification_session(purpose, token)
+
+
+@pytest.mark.asyncio
+async def test_can_resend_allowed():
+    """
+    Test that can_resend returns True if cooldown period has passed and max resends not reached.
+    """
+    session_key = "verification_session:test:token"
+    mock_data = {"last_sent_at": "0", "resend_count": "0"}
+
+    with patch("app.api.utils.verification_otp_token.redis_client") as mock_redis, \
+         patch("time.time", return_value=1000):
+        mock_redis.hgetall = AsyncMock(return_value=mock_data)
+
+        result = await verification_otp_token.can_resend(session_key)
+        assert result is True
+
+
+@pytest.mark.asyncio
+async def test_can_resend_cooldown_not_allowed():
+    """
+    Test that can_resend returns False if cooldown period has not passed.
+    """
+    session_key = "verification_session:test:token"
+    mock_data = {"last_sent_at": "995", "resend_count": "0"}
+
+    with patch("app.api.utils.verification_otp_token.redis_client") as mock_redis, \
+         patch("time.time", return_value=1000), \
+         patch("app.api.utils.verification_otp_token.settings") as mock_settings:
+        mock_settings.RESEND_COOLDOWN_SECONDS = 10
+        mock_settings.MAX_RESENDS = 5
+        mock_redis.hgetall = AsyncMock(return_value=mock_data)
+
+        result = await verification_otp_token.can_resend(session_key)
+        assert result is False
+
+
+@pytest.mark.asyncio
+async def test_can_resend_max_reached():
+    """
+    Test that can_resend returns False when max resends have been reached.
+    """
+    session_key = "verification_session:test:token"
+    mock_data = {"last_sent_at": "0", "resend_count": "5"}
+
+    with patch("app.api.utils.verification_otp_token.redis_client") as mock_redis, \
+         patch("time.time", return_value=1000), \
+         patch("app.api.utils.verification_otp_token.settings") as mock_settings:
+        mock_settings.RESEND_COOLDOWN_SECONDS = 1
+        mock_settings.MAX_RESENDS = 5
+        mock_redis.hgetall = AsyncMock(return_value=mock_data)
+
+        result = await verification_otp_token.can_resend(session_key)
+        assert result is False
+
+
+@pytest.mark.asyncio
+async def test_update_resend_success():
+    """
+    Test that update_resend updates the resend count and last sent time in Redis.
+    """
+    session_key = "verification_session:test:token"
+    new_otp = "5678"
+    mock_data = {"otp": "1234", "last_sent_at": "0", "resend_count": "1"}
+
+    with patch("app.api.utils.verification_otp_token.redis_client") as mock_redis, \
+         patch("time.time", return_value=2000), \
+         patch("app.api.utils.verification_otp_token.settings") as mock_settings:
+        mock_settings.VERIFICATION_SESSION_EXPIRY = 300
+        mock_redis.hgetall = AsyncMock(return_value=mock_data)
+        mock_redis.hset = AsyncMock()
+        mock_redis.expire = AsyncMock()
+
+        await verification_otp_token.update_resend(session_key, new_otp)
+
+        mock_redis.hset.assert_called_once()
+        mock_redis.expire.assert_called_once_with(session_key, 300)
+
